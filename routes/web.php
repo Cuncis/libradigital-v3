@@ -3,6 +3,7 @@
 use App\Http\Controllers\CustomRequestBuildController;
 use App\Http\Controllers\CustomRequestController;
 use App\Http\Controllers\InvitationPageController;
+use App\Http\Controllers\InvitationPreviewController;
 use App\Http\Controllers\LandingController;
 use App\Http\Controllers\MayarWebhookController;
 use App\Http\Controllers\RsvpExportController;
@@ -32,6 +33,10 @@ Route::get('/admin/custom-requests/{customRequest}/build', CustomRequestBuildCon
 
 Route::get('/i/{slug}', InvitationPageController::class)
     ->name('invitations.show');
+
+Route::get('/invitations/{invitation}/preview', InvitationPreviewController::class)
+    ->middleware('auth')
+    ->name('invitations.preview');
 
 Route::post('/i/{invitation:slug}/rsvp', [RsvpSubmissionController::class, 'store'])
     ->name('rsvps.store');

@@ -2,10 +2,13 @@
 
 namespace App\Filament\Resources\Invitations\Tables;
 
+use App\Models\Invitation;
+use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
+use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
@@ -55,6 +58,11 @@ class InvitationsTable
                     ]),
             ])
             ->recordActions([
+                Action::make('preview')
+                    ->label('Preview')
+                    ->icon(Heroicon::OutlinedEye)
+                    ->url(fn (Invitation $record): string => route('invitations.preview', $record))
+                    ->openUrlInNewTab(),
                 EditAction::make(),
                 DeleteAction::make(),
             ])

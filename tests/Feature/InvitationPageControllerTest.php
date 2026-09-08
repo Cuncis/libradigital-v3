@@ -124,4 +124,74 @@ class InvitationPageControllerTest extends TestCase
         $response->assertSee($expectedUrl, false);
         $response->assertDontSee('/storage/invitations/photo.jpg', false);
     }
+
+    /**
+     * Regression: Layup's tree-builder has no error handling for a
+     * malformed row/column/widget entry (unlike individual widgets, which
+     * are already try/caught) — a single non-array entry anywhere in this
+     * shape used to throw a hard TypeError and 500 the whole page, even
+     * though Layup's own ContentValidator deliberately allows malformed
+     * content to be saved (warns, doesn't block). Reproduces the exact
+     * shape that caused it in production: `content.rows.0` was a string.
+     */
+    public function test_a_malformed_row_is_skipped_instead_of_crashing_the_page(): void
+    {
+        $invitation = Invitation::factory()->published()->create([
+            'slug' => 'amara-reyhan',
+            'content' => [
+                'rows' => [
+                    'second', // malformed: a string where a row object belongs
+                    [
+                        'id' => 'row_1',
+                        'settings' => [],
+                        'columns' => [[
+                            'id' => 'col_1',
+                            'span' => ['sm' => 12, 'md' => 12, 'lg' => 12, 'xl' => 12],
+                            'settings' => [],
+                            'widgets' => [[
+                                'id' => 'widget_1',
+                                'type' => 'heading',
+                                'data' => ['content' => 'Still Renders', 'level' => 'h2'],
+                            ]],
+                        ]],
+                    ],
+                ],
+            ],
+        ]);
+
+        $response = $this->get('/i/amara-reyhan');
+
+        $response->assertOk();
+        $response->assertSee('Still Renders');
+    }
+
+    public function test_a_malformed_column_or_widget_is_also_skipped_instead_of_crashing(): void
+    {
+        $invitation = Invitation::factory()->published()->create([
+            'slug' => 'amara-reyhan',
+            'content' => [
+                'rows' => [[
+                    'id' => 'row_1',
+                    'settings' => [],
+                    'columns' => [
+                        'not-a-column',
+                        [
+                            'id' => 'col_1',
+                            'span' => ['sm' => 12, 'md' => 12, 'lg' => 12, 'xl' => 12],
+                            'settings' => [],
+                            'widgets' => [
+                                'not-a-widget',
+                                ['id' => 'widget_1', 'type' => 'heading', 'data' => ['content' => 'Still Renders', 'level' => 'h2']],
+                            ],
+                        ],
+                    ],
+                ]],
+            ],
+        ]);
+
+        $response = $this->get('/i/amara-reyhan');
+
+        $response->assertOk();
+        $response->assertSee('Still Renders');
+    }
 }
