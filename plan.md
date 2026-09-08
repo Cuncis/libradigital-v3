@@ -28,10 +28,22 @@ Both paths converge on the same `Invitation` model/editor — custom requests ar
 - **Database: MySQL** (dev and prod — replaces the SQLite default that ships with the Laravel skeleton).
 - **Tenancy mechanism for `/user`.** Filament's built-in panel tenancy puts the tenant id/slug in the URL (e.g. `/user/{tenant}/invitations`), which conflicts with your flat `/user` requirement. Plan uses **manual query scoping** (every resource query constrained to `auth()->id()`) instead of Filament tenancy — simpler, matches the flat URL, costs us Filament's automatic tenant-switcher UI, which we don't need since each customer only ever sees their own data.
 
+- **Billing model: recurring subscription**, monthly or yearly, priced in **IDR (Rupiah)**. Each plan is offered at both intervals; yearly is priced at roughly 10× the monthly rate (~2 months free) as the standard SaaS discount pattern. `Plan` becomes one row per tier-per-interval (e.g. "Plus Monthly" and "Plus Yearly" are separate `Plan` records, each with its own `mayar_tier_id` — Mayar's tier/membership model is naturally one tier per price+interval, this maps directly).
+
+### Plan tiers (IDR — confirmed)
+
+| Tier | Monthly | Yearly | Invitations (while subscribed) | Key features |
+|---|---|---|---|---|
+| Starter | Rp 49.000 | Rp 490.000 | 1 | Branding shown, RSVP capped ~50 guests, standard themes only |
+| Plus | Rp 99.000 | Rp 990.000 | 3 | Branding removed, RSVP capped ~300 guests, standard + premium themes |
+| Pro | Rp 199.000 | Rp 1.990.000 | 10 | Unlimited RSVP, custom domain, priority support |
+| Organizer | Rp 499.000 | Rp 4.990.000 | Unlimited | For EOs/vendors reselling to clients, white-label option |
+
+"Invitations (while subscribed)" is the cap on `Invitation` records the account can have while the `Subscription` is `active` — not a per-billing-period reset, since an invitation is a lasting piece of content, not a consumable. Cancelling/expiring doesn't delete existing invitations but should stop further creation and can optionally re-lock premium features (confirm desired behavior in Phase 4).
+
 ## Still open (flagged, not blocking — pick when you review)
 
-- **Invitation limit per plan.** Assuming plans gate by *number of invitations* + *feature flags* (custom domain, RSVP limit, remove branding, guest-name personalization). Confirm the actual tiers before Phase 4.
-- **Domain model for public invitation URLs.** Assuming `yourapp.com/i/{slug}` to start; custom domains per invitation (premium feature) is called out as a stretch item, not in the base plan.
+- **Domain model for public invitation URLs.** Assuming `yourapp.com/i/{slug}` to start; custom domains per invitation (premium feature, gated to Pro/Organizer per the table above) is called out as a stretch item, not in the base plan.
 
 ---
 
@@ -46,19 +58,21 @@ Both paths converge on the same `Invitation` model/editor — custom requests ar
 - [ ] Pull in GSAP for the public-facing animation layer: `npm install gsap` (or CDN script tag in the invitation/marketing layout — either works with Vite already in place), import where needed in `resources/js`.
 - [ ] Confirm Mayar.id sandbox vs production API base and get API keys before Phase 4 (see Phase 4 for the exact env vars).
 
-## Phase 2 — Domain model
+## Phase 2 — Domain model ✅ done
 
-- [ ] `Invitation` model, subclassing `Crumbls\Layup\Models\Page` (per Layup's "swapping the page model" pattern) — inherits revisions, scheduled publishing, SEO/JSON-LD, slug handling for free.
-  - Migration adds: `user_id` (owner), `event_date`, `host_name`, `venue`, `theme_id` (nullable, which starter theme it was created from), `is_custom_build` (bool — created via custom-request path).
-  - `config/layup.php` → `pages.model = App\Models\Invitation::class`, `pages.table = invitations`.
-- [ ] `Theme` model — starter templates for the picker. Fields: `name`, `description`, `preview_image`, `content` (JSON — a pre-built Layup layout), `category` (wedding/birthday/corporate/etc.), `is_active`.
-  - Seeder with a handful of starter themes (blank + 3–5 designed ones) built using Layup widgets (Hero, Countdown, Gallery, Map, Timeline, Testimonial).
-- [ ] `Plan` model — `name`, `price`, `billing_interval`, `invitation_limit`, `features` (JSON: custom_domain, remove_branding, rsvp_limit, guest_personalization, priority_support).
-- [ ] `Subscription` model — `user_id`, `plan_id`, `status`, `current_period_end` (or Cashier's own subscription table if Cashier is adopted — see Phase 4).
-- [ ] `CustomRequest` model — `user_id`, `event_type`, `event_date`, `style_notes`, `budget`, `status` (`new`, `in_review`, `in_progress`, `delivered`, `cancelled`), `invitation_id` (nullable, set once staff creates the working `Invitation` for them), `assigned_admin_id`.
-- [ ] `Guest` / `Rsvp` model — `invitation_id`, `name`, `attending` (bool/enum incl. "maybe"), `party_size`, `message`, `responded_at`.
-- [ ] Factories + seeders for all of the above (Boost/Laravel convention).
-- [ ] Policies: `InvitationPolicy` (owner-or-admin), `CustomRequestPolicy` (owner-or-staff).
+- [x] `Invitation` model, subclassing `Crumbls\Layup\Models\Page` (per Layup's "swapping the page model" pattern) — inherits revisions, scheduled publishing, SEO/JSON-LD, slug handling for free.
+  - Migration adds: `user_id` (owner), `event_date`, `host_name`, `venue`, `theme_id` (nullable, which starter theme it was created from), `is_custom_build` (bool — created via custom-request path). Also carries the base Page columns (`parent_id`, `path`, `content`, `status`, `published_at`, `meta`, `featured_image`, `author`) since Layup's bundled migrations are skipped while `pages.enabled = false` — verified via tinker that create/save/revision/path-generation all work identically to the bundled `Page`.
+  - `config/layup.php` → `pages.model = App\Models\Invitation::class`, `pages.table = invitations`. Own `layup_page_revisions` migration added too (Layup's own is also skipped), FK'd to `invitations`.
+- [x] `Theme` model — starter templates for the picker. Fields: `name`, `description`, `preview_image`, `content` (JSON), `category`, `is_active`.
+  - Seeded: Blank + Elegant Wedding, Modern Birthday, Corporate Event (Hero/Countdown/Gallery/Map/Testimonial widgets).
+- [x] `Plan` model — matches the confirmed IDR tiers. Seeded 8 rows (Starter/Plus/Pro/Organizer × monthly/yearly) via `PlanSeeder`.
+- [x] `Subscription` model — `user_id`, `plan_id`, `status`, `mayar_member_id`, `mayar_invoice_id`, `current_period_end`.
+- [x] `CustomRequest` model — as specified, plus `assignedAdmin()`/`invitation()`/`user()` relations.
+- [x] `Guest` model (went with a single model rather than separate Guest/Rsvp — one row already captures the full RSVP state) — `invitation_id`, `name`, `attending` (`App\RsvpStatus` enum: Attending/NotAttending/Maybe), `party_size`, `message`, `responded_at`.
+- [x] Factories + seeders for all of the above — verified end-to-end via tinker (create, relations, enum casts, revision auto-save all confirmed working).
+- [x] Policies: `InvitationPolicy` (owner-or-admin), `CustomRequestPolicy` (owner-or-staff) — written, not yet wired to any panel (that's Phase 3).
+- New: `App\SubscriptionStatus`, `App\CustomRequestStatus`, `App\RsvpStatus` enums added (same pattern as Phase 1's `App\UserRole`) for the status/attending columns above.
+- Fixed while building: `SubscriptionFactory`'s default `plan_id` was colliding with the seeded `Plan` catalog's unique `(tier, billing_interval)` constraint — now reuses an existing `Plan` row when one exists, falls back to the factory only when the table is empty.
 
 ## Phase 3 — Auth & panel access
 
