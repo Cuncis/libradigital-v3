@@ -25,11 +25,13 @@ class InvitationPolicy
     }
 
     /**
-     * Determine whether the user can create models.
+     * Determine whether the user can create models. Admins always can (they
+     * build invitations on customers' behalf for custom requests); customers
+     * are gated by their plan's invitation limit — see canCreateInvitation().
      */
     public function create(User $user): bool
     {
-        return true;
+        return $user->role === UserRole::Admin || $user->canCreateInvitation();
     }
 
     /**

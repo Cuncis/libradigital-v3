@@ -107,53 +107,122 @@ No Cashier-equivalent exists for Mayar, so this is a hand-rolled integration. Co
 
 **Tests added** (`tests/Feature/MayarWebhookControllerTest.php`, `SubscriptionControllerTest.php`, `Services/SubscriptionCheckoutServiceTest.php`, `Filament/User/BillingPageTest.php`) — 13 new tests, all outbound Mayar calls faked via `Http::fake()` + `Http::preventStrayRequests()`, covering: token verification, webhook idempotency, payment/expiry/tier-change handling, checkout's phone/tier-id guard clauses, and panel access to the billing page. Full suite: 18/18 passing.
 
-## Phase 5 — Landing page (`/`)
+## Phase 5 — Landing page (`/`) ✅ done
 
-- [ ] Hero section — what the product is, primary CTA.
-- [ ] Theme gallery preview — pulls active `Theme` records, links into "start with this theme" (goes to signup/checkout if logged out, straight to `/user` invitation-create if already subscribed).
-- [ ] Pricing section — plan cards from `Plan` model, "Subscribe" → checkout (Phase 4).
-- [ ] "Prefer we build it for you?" section — CTA into the custom-request form (public form, or gated behind a quick signup so we have a `user_id` to attach the request to).
-- [ ] Public custom-request form → creates `CustomRequest` (`status = new`), optionally creates the `User` account inline if they weren't signed up yet.
-- [ ] Basic SEO/OG for the landing page itself.
+Design approach: rather than a generic SaaS-gradient page, the visual language is grounded in the actual subject — invitation stationery. Palette is warm ivory "cardstock" (`--color-paper`), warm ink, a deep ceremonial pine-green accent, and a muted brass/foil accent — deliberately *not* the cream+terracotta combo that reads as an AI-generated default. Display type is **Fraunces** (added via the project's existing Bunny Fonts convention in `vite.config.js`, same pattern as the existing Instrument Sans), paired with the existing Instrument Sans for body/UI. One deliberate motion moment (GSAP hero entrance — headline, subcopy, CTA row staggered in, plus the invitation-card mockup), not scattered hover effects. All design tokens live in `resources/css/app.css`'s `@theme` block (`bg-paper`, `font-display`, `text-pine`, etc. — verified compiled into real Tailwind utilities).
 
-## Phase 6 — `/user` panel (self-service editing)
+- [x] Hero — headline/subcopy/CTA left, a static invitation-card mockup right (hand-built HTML/CSS, not a generic image) as the GSAP entrance target.
+- [x] Theme gallery — `LandingController` pulls `Theme::active()->latest()->limit(6)`. Since **authenticated users never reach this page at all** (redirected straight to their panel, see below), every CTA here — theme cards, pricing, nav — simply links to `/user/register`. There's no separate logged-in-vs-guest CTA branching to build.
+- [x] Pricing — plans grouped by tier (reusing the same `groupBy('tier')` pattern as the Billing page), monthly price primary with a yearly note, feature bullets via a new `Plan::featureBullets()` model method (translates the stored `features` flags into plain language — reusable anywhere pricing is shown).
+- [x] "Prefer we build it for you?" section + inline custom-request form, anchored at `#custom-request`.
+- [x] `CustomRequestController@store` — validates, creates a `CustomRequest` (`status = new`); for guests, `firstOrCreate`s a `User` by email (random password, `role = customer`) rather than erroring or requiring signup first. Existing-email guests get attached to their existing account rather than duplicated.
+- [x] Basic SEO — title, meta description, OG title/description/url, canonical, twitter:card. No `og:image` yet (nothing to reference honestly — add one when there's real brand art).
+- Replaced Laravel's default `welcome.blade.php` entirely (it was unused starter-kit boilerplate); `LandingController@index` now also owns the already-existing "redirect authenticated visitors to their panel" logic moved here from the route closure.
+- Enabled `->passwordReset()` on `UserPanelProvider` — required for this phase's own custom-request flow to make sense: a guest-created account (random password, never told to them) would otherwise have no way to ever log in.
 
-- [ ] "Create invitation" flow: pick a `Theme` (clones its `content` JSON into a new `Invitation`) or start blank; respects `plan.invitation_limit`.
-- [ ] `InvitationResource` (Filament): title/slug/event details form + `LayupBuilder::make('content')` for the visual editor.
-- [ ] Publish / schedule controls (`status`, `published_at`) — reuses Layup's built-in scheduled-publishing behavior inherited from `Page`.
-- [ ] RSVP dashboard widget/page — list of `Guest` responses for the customer's invitation(s), attending count, export (CSV).
-- [ ] Revision history UI (inherited from Layup) — restore a previous version of the design.
-- [ ] Account/billing page (links into Phase 4's billing portal).
+**Known gap, flagged not fixed**: `config('app.name')` is still the Laravel default (`APP_NAME=Laravel` in `.env`), so the page title and header/footer wordmark literally say "Laravel" right now. Not something to guess a brand name for — **set `APP_NAME` to your actual product name** whenever you've decided it.
 
-## Phase 7 — `/admin` panel
+**Tests added**: `LandingControllerTest` (active-only theme listing, plan grouping, both redirect cases), `CustomRequestControllerTest` (guest account creation, existing-email reuse, authenticated shortcut, validation). Also fixed the pre-existing `ExampleTest` and added `LazilyRefreshDatabase` to it — it never needed the database before this phase, now the route it hits does. Full suite: 28/28 passing.
 
-- [ ] `InvitationResource` (admin scope, unfiltered) — see/edit/delete any customer's invitation, reassign owner if needed.
-- [ ] `UserResource` — manage customers, roles, subscription status at a glance.
-- [ ] `ThemeResource` — CRUD the starter-theme catalog (build a theme using the same `LayupBuilder` field, mark active/inactive, set preview image + category).
-- [ ] `CustomRequestResource` — queue view (`new` → `in_review` → `in_progress` → `delivered`), assign to staff member, and a "build this" action that creates/opens the linked `Invitation` (using the admin's own Layup builder access) so staff design it directly against the customer's account.
-- [ ] `PlanResource` / `SubscriptionResource` — pricing management, view active subscriptions, manually override/comp a subscription if needed.
-- [ ] Dashboard widgets: MRR-ish subscription count, custom-request backlog, invitations published this week.
+## Phase 6 — `/user` panel (self-service editing) ✅ done
 
-## Phase 8 — Public invitation frontend
+- [x] `InvitationResource` (`App\Filament\User\Resources\Invitations`) — title/slug (auto-filled from title on create, `->live(onBlur:true)`), host name, venue, event date, status/publish-at, and `LayupBuilder::make('content')`. **This is the first real resource in `/user`, so it's where the Phase 3-deferred query-scoping convention actually gets applied**: `InvitationResource::getEloquentQuery()` filters to `user_id = auth()->id()`.
+- [x] "Create invitation" flow — a `theme_id` select (active themes only, create-only field) that's `->live()` with `afterStateUpdated()` setting the `content` field's live state directly from the theme's JSON. Deliberately *not* done via `mutateFormDataBeforeCreate()` — that would silently discard any edits the customer made in the builder before submitting, since it runs after the whole form (including their live builder edits) is already filled in. Blank start is the default (no theme selected).
+- [x] `plan.invitation_limit` enforcement — `InvitationPolicy::create()` now calls `$user->canCreateInvitation()` (built in Phase 4, unused until now). Admins bypass it unconditionally (they create invitations for custom requests regardless of the customer's plan).
+- [x] Publish/schedule controls — plain `status` select + `published_at` picker; the smart behavior (auto-set `published_at` on publish, auto-reclassify a future-dated publish as `scheduled`) is entirely inherited from `Page::booted()`, nothing custom needed.
+- [x] Revision history — `RevisionsRelationManager` (read-only table: saved-at, author, note + a "Restore" action). No Filament UI ships with Layup for this, only model methods — built from scratch.
+- [x] RSVP dashboard (`/user/rsvps`, `App\Filament\User\Pages\Rsvps`) — table of `Guest` rows scoped to the customer's invitations, an attending-count summary (sums `party_size` where `attending = Attending`), CSV export.
+- [x] Account/billing — already fully built in Phase 4 (`/user/billing`), nothing further needed here.
 
-- [ ] Custom controller (extends Layup's `AbstractController`) serving `/i/{slug}`, published-only, 404 on draft/unpublished.
-- [ ] Invitation-specific Blade layout (distinct from admin/marketing layout) — full-bleed, mobile-first (most guests open on phone).
-- [ ] Guest-name personalization via query string (`/i/{slug}?to=Jane`) — common expectation for this product category; small custom Blade/Alpine addition, not a Layup feature.
-- [ ] RSVP submission: custom widget (`php artisan layup:make-widget RsvpForm`) posting to a route that creates a `Guest` record against the invitation — plain form post is enough; a small Livewire component is a fine upgrade if reload-free submission is wanted, no new dependency either way.
-- [ ] SEO/OG per invitation (inherited from `Page`/Layup) so shared links (WhatsApp/IG) render a proper preview card.
-- [ ] `@layupScripts` + Alpine wired into the invitation layout for interactive widgets (Countdown, Gallery lightbox, Accordion, etc.); GSAP layered in for the invitation's hero/reveal animation.
-- [ ] Confirm images/galleries uploaded through the builder resolve to R2 URLs correctly on the public page (disk already set to `r2` in Phase 1).
+**Two real bugs found and fixed while building this** (both caught by tests failing unexpectedly, not by inspection):
+1. **`Filament\Forms\Components\Section` doesn't exist in this installed Filament 5 version** — it's `Filament\Schemas\Components\Section` (forms/infolists were unified under "Schemas" in Filament 5). Wrong-namespace guesses from general Filament knowledge don't hold for this specific version; confirmed via `find` in `vendor/filament` before trusting it.
+2. **`User::canAccessPanel()` was wrongly denying freshly-created customers within the same request.** Root cause: `role` has a DB column default (`'customer'`) but nothing set it on the in-memory model after `create()` — Eloquent doesn't re-fetch DB-default columns after an insert, so `$user->role` was `null` (not the enum) until the *next* request re-hydrated the model from the database. This isn't just a test-fixture quirk: **Filament's own registration flow only submits name/email/password**, so a real customer immediately after self-registering would have hit this exact gap on their first request. Fixed at the model level with a PHP `protected $attributes = ['role' => 'customer']` default (mirrors the DB default so both stay in sync), not by patching individual factories.
 
-## Phase 9 — Domain-specific widgets (custom Layup widgets)
+Also learned mid-phase: Layup's revisions snapshot content *as of* each save (a checkpoint trail), not "the version before this edit" — the first test written against the relation manager assumed the opposite and consequently failed for the right reason (the assertion's premise was wrong, not the restore logic). Confirmed against Layup's own docs wording before rewriting the test.
 
-- [ ] `RsvpForm` widget (Phase 8).
-- [ ] Optional: gift/bank-transfer info widget, background-music player widget, love-story timeline preset — only if these are actually wanted; don't build ahead of a confirmed feature list.
-- [ ] `php artisan layup:doctor` and `layup:list-widgets` run clean after additions.
+**Tests added**: `InvitationResourceTest` (owner-only list/edit scoping, create blocked with no subscription, create blocked past `invitation_limit`, theme-content cloning), `RsvpsPageTest`, `RsvpExportControllerTest`, `RevisionsRelationManagerTest`. Filament resource/page tests needed `Filament::setCurrentPanel(Filament::getPanel('user'))` in `setUp()` — `Livewire::test()` doesn't traverse the `/user/*` URL, so without it Filament resolves routes/policies against the default (`admin`) panel instead. Full suite: 39/39 passing.
 
-## Phase 10 — Notifications
+## Phase 7 — `/admin` panel ✅ done
 
-- [ ] Email (or WhatsApp, if that's part of the product) on: new RSVP received (to owner), subscription receipt/renewal/failure, custom-request status change.
-- [ ] Queued via the existing `database` queue driver (already the app default).
+- [x] `InvitationResource` (`App\Filament\Resources\Invitations` — separate class from the customer panel's, no query scoping, sees every owner's invitations) — same fields as the customer version plus an `user_id` owner-reassignment select and an `is_custom_build` toggle.
+- [x] `UserResource` — name/email/phone/role, password only required on create (blank = unchanged on edit), table shows role badge, current plan (via `currentPlan()`), invitation count. Deliberately no bulk-delete action — deleting a `User` cascades to all their invitations/subscriptions/custom-requests (Phase 2's FK design), so bulk delete stayed off the table to reduce the blast radius of a misclick; single delete still available with Filament's default confirmation.
+- [x] `ThemeResource` — full CRUD with `LayupBuilder::make('content')`, `FileUpload` for `preview_image` (on the `r2` disk, same as everywhere else), category/active filters.
+- [x] `CustomRequestResource` — queue table with an inline-editable status `SelectColumn` (no separate transition actions needed), "Assign to me" row action, and a "Build this" action. The build action is a **plain HTTP redirect via a dedicated controller** (`CustomRequestBuildController`, `GET /admin/custom-requests/{customRequest}/build`), not a Filament action closure — same reasoning as Phase 4's billing buttons: a redirect-after-side-effect from inside a Livewire action is uncertain territory, a real controller isn't. It creates the `Invitation` (owned by the requester, `is_custom_build = true`) only if one isn't already linked, bumps `new` → `in_review`, then redirects straight into the admin's own `InvitationResource` edit page for it.
+- [x] `PlanResource` — full CRUD including the `features` JSON via dot-notation form fields (`features.remove_branding` etc. — Filament binds these directly against the array-cast column). Table flags any plan with no `mayar_tier_id` configured in red, so the still-outstanding Mayar setup from Phase 4 stays visible.
+- [x] `SubscriptionResource` — full CRUD; setting `status` to `active` directly here *is* the "comp a subscription" mechanism — no separate action needed, editing the field is the override.
+- [x] `AdminOverview` dashboard widget — active subscriptions + estimated MRR (yearly plans normalized to monthly), custom-request backlog (new/in_review/in_progress), invitations published this calendar week.
+- Extracted `RevisionsRelationManager` (Phase 6) out of the customer-only namespace into `App\Filament\RelationManagers` so both `InvitationResource` classes share the exact same read-only revision history + restore UI — identical behavior in both panels, only the surrounding resource's access scope differs.
+
+**One thing worth knowing, not a bug**: `AdminOverview`'s stats never appear in a plain `GET /admin` response — Filament widgets default to lazy-loading (`Filament\Support\Concerns\CanBeLazy`, `$isLazy = true`), so content loads via a follow-up Livewire request the initial page load doesn't include. First test written against it failed for exactly this reason; fixed by testing the widget component directly via `Livewire::test(AdminOverview::class)` rather than hitting the dashboard route.
+
+**Tests added**: one resource-access test pair (admin can view / customer forbidden) per resource, `assignToMe` and the widget tested via `Livewire::test()`, and a dedicated `CustomRequestBuildControllerTest` covering the non-admin-forbidden case, invitation creation + linking + status bump, and that reopening an already-built request reuses the same invitation rather than creating a second one. Full suite: 56/56 passing.
+
+## Phase 8 — Public invitation frontend ✅ done
+
+This phase surfaced three real, pre-existing bugs — one significant enough that it would have broken every photo on every invitation in production. All found and fixed by testing actual rendered output against real behavior rather than trusting that things compiled.
+
+### Bug 1 (significant): every media widget ignored the configured upload disk entirely
+
+Layup's bundled widget views (`image`, `gallery`, `hero`, `testimonial`, `card`, `person`, `banner`, `slider`, `masonry`, `logo-grid`, `logo-slider`, `avatar-group`, `team-grid`, `before-after`, `hotspot`, `image-hotspot`, `image-card`, `image-text`, `blurb`, `audio`, `file-download`, `testimonial-carousel`, `testimonial-slider` — 25 occurrences across 23 files) all hardcoded `asset('storage/' . $data['src'])` — the `public`-disk storage-symlink convention — regardless of `config('layup.uploads.disk')`. Since that's been `r2` since Phase 1 (your explicit ask), **every uploaded photo on every invitation would have rendered a broken image** — a launch-blocking defect for a product whose entire point is photo-rich invitations.
+
+Fixed via Laravel's standard vendor-view-override mechanism: `php artisan vendor:publish --tag=layup-views`, then a mechanical regex replace of the one broken pattern (identical shape everywhere: `asset('storage/' . EXPR)` → `\Illuminate\Support\Facades\Storage::disk(config('layup.uploads.disk', 'public'))->url(EXPR)`) across all 25 occurrences. Backward-compatible — for the `public` disk this produces the same result as before, so it's a strict improvement, not a breaking change.
+
+**Trade-off worth knowing**: `resources/views/vendor/layup/` now shadows those 23 files permanently — Laravel always prefers the published copy over the package's own. A future `composer update` improving these specific templates won't reach the app automatically; re-diff `vendor/crumbls/layup/resources/views/components/` against the published copies occasionally, or re-apply this same patch after upgrading.
+
+### Bug 2: every invitation's SEO/OG/canonical URL pointed at a route that doesn't exist
+
+`config('layup.frontend.prefix')` was still `'pages'` (Layup's bundled default) even though `frontend.enabled = false` disabled that route back in Phase 1. `Page::getUrl()` (used for `og:url`, canonical, and JSON-LD `url`) reads that config regardless of whether the route is enabled — so every shared invitation link would have previewed a dead `/pages/{slug}` URL instead of the real `/i/{slug}`, defeating this phase's own "shared links render a proper preview card" requirement. Fixed with a one-line config change (`prefix: 'i'`) — no code changes needed since `getUrl()` already builds from this value.
+
+### Bug 3: Layup's own `layup:make-widget` generator scaffolds broken code
+
+The generated `RsvpFormWidget` stub declared `public static function getViewName(): string`, but the parent (`BaseBladeWidget`) declares it as a non-static instance method — an incompatible override that's a PHP **fatal error** (not an exception — it crashed the PHP process outright, which is what actually blocked the first test run here). Fixed by correcting the override to `protected function getViewName(): string` and pointing it at the file's actual location (the generator's default-convention view path assumption doesn't match where it writes the file, either).
+
+### What was built
+
+- [x] `InvitationPageController extends AbstractController`, serving `/i/{slug}`, `published()`-scoped (404 on draft/unpublished/unknown).
+- [x] `resources/views/components/layouts/invitation.blade.php` — deliberately neutral chrome (white background, base font, no imposed marketing palette) since the page renders customer-authored content, not our brand.
+- [x] Guest-name personalization (`?to=Jane`) via a small banner, not a fragile content-placeholder-replacement scheme — implemented via `view()->share('guestName', ...)` in `getViewData()`, mirroring the exact pattern `AbstractController` itself already uses for `layupPage` (Blade components don't inherit parent-view scope, so this is the correct mechanism, not a workaround).
+- [x] `RsvpFormWidget` (custom Layup widget, `App\Layup\Widgets`, auto-discovered) — posts to `POST /i/{invitation:slug}/rsvp` (`RsvpSubmissionController`), 404s on unpublished invitations, creates a `Guest` record. Plain form post, no Livewire needed.
+- [x] Separate Vite entry (`invitation.css`/`invitation.js`) rather than reusing the marketing bundle — Alpine.js (new dependency, `npm install alpinejs`) is only needed here, not on the landing page, so it stays out of that bundle. `@layupScripts` (theme CSS + all `Alpine.data(...)` registrations) is emitted automatically as part of Layup's own content-loop template — no manual wiring needed beyond rendering `{{ $slot }}`.
+- [x] GSAP hero-reveal (guest banner fade-in, reduced-motion respected).
+- [x] SEO confirmed correct end-to-end (title, OG, canonical, JSON-LD) — including the prefix fix above.
+- [x] Image/upload-disk resolution confirmed correct end-to-end (Bug 1 above) — tested via a Mockery expectation on `Storage::disk('r2')->url(...)` rather than `Storage::fake()`, since fake() returns its own generic `/storage/{path}` convention from `url()` regardless of a disk's actual configured URL, which would have silently passed a still-broken implementation.
+
+**Tests added**: `InvitationPageControllerTest` (render, draft/unknown → 404, guest-name banner shown/hidden, SEO title, OG URL correctness, disk-aware image resolution), `RsvpSubmissionControllerTest` (valid submission, validation, blocked on unpublished, party-size default). Full suite: 68/68 passing.
+
+## Phase 9 — Domain-specific widgets (custom Layup widgets) ✅ done
+
+User confirmed all three optional extras.
+
+- [x] `RsvpForm` widget — built in Phase 8 (the public page needed it to function).
+- [x] `GiftInfoWidget` (`gift-info`) — heading, intro text, a `Repeater` of bank/e-wallet accounts (bank name, account number, holder) with a copy-to-clipboard button per account, plus an optional digital-gift link button. Accounts with no number are skipped at render time (a partially-filled repeater row shouldn't show a blank card).
+- [x] `MusicPlayerWidget` (`music-player`) — a fixed floating play/pause button, `<audio loop>`. Best-effort autoplay attempt behind a try/catch (browsers block audio autoplay until user interaction — the toggle button always works regardless, so this is honest about what autoplay can and can't guarantee rather than pretending it always works). Applied Phase 8's lesson immediately: resolves the audio URL via `Storage::disk(config('layup.uploads.disk'))->url(...)`, not the hardcoded `asset('storage/...')` pattern that was broken everywhere else.
+- [x] `LoveStoryTimelineWidget` (`love-story-timeline`) — a themed preset subclassing Layup's built-in `TimelineWidget` (not a from-scratch widget): overrides type/label/icon/default placeholder events ("How We Met" / "First Date" / "The Proposal" instead of the generic company-timeline defaults), reuses the parent's form schema and rendering entirely unchanged.
+- [x] `php artisan layup:doctor` — 12/12 passing (100 widgets: 95 built-in + 4 custom). `layup:list-widgets` confirms all four.
+- Added `[x-cloak] { display: none !important; }` to `invitation.css` — the standard Alpine convention, needed once these widgets started using `x-cloak` (copy-confirmation text, play/pause icon swap) so toggled content doesn't flash visible before Alpine initializes.
+
+**One more tool limitation found**: `layup:doctor`'s Blade-view check is hardcoded to two conventional path guesses (`layup::components.{type}` / `components.layup.{type}`) — it doesn't actually call a widget's real `getViewName()`, so a widget that legitimately overrides it (as `LoveStoryTimelineWidget` initially did, to reuse `TimelineWidget`'s view) reports a false-positive failure. Rather than fight the tool, simplified: dropped the override and placed a one-line pass-through view at the conventional path instead (`@include('layup::components.timeline', ...)`) — cleaner than maintaining two mechanisms doing the same job, and it satisfies the doctor's check honestly rather than gaming it.
+
+**Tests added** (`CustomWidgetsTest`): gift-info renders account details/digital link and skips incomplete accounts, music-player resolves via the configured disk and renders nothing without a file, love-story-timeline renders provided events. Full suite: 73/73 passing.
+
+## Phase 10 — Notifications ✅ done
+
+Email (not WhatsApp — no provider/credentials for that, and it wasn't asked for; easy to add a channel later if wanted). All five notifications `implements ShouldQueue` and route through the `mail` channel only.
+
+- [x] `NewRsvpReceived` → invitation owner, on every new `Guest`.
+- [x] `SubscriptionActivated` → customer, on activation *and* renewal (see design note below).
+- [x] `SubscriptionPaymentReminder` → customer, on Mayar's `payment.reminder` event — this was previously just logged with a "optional: notify" comment in Phase 4; now actually wired.
+- [x] `SubscriptionEnded` → customer, on expiry or cancellation (one class, parameterized by which — the two read almost identically, didn't see a reason for two classes).
+- [x] `CustomRequestStatusChanged` → requester, on any status transition.
+- [x] Queued via the `database` driver — confirmed for real (not just via `Notification::fake()` in tests): triggered a live notification and checked the `jobs` table directly, one row landed as expected.
+
+**Design choice**: triggered via Eloquent Observers (`GuestObserver`, `SubscriptionObserver`, `CustomRequestObserver`, registered with `#[ObservedBy(...)]` on each model — matches this codebase's existing attribute-based style on `User`) rather than calling `notify()` inline in each controller. Model-level means it fires no matter which path changes the record — a controller today, a Filament admin edit tomorrow — without having to remember to wire notifications into every new caller. Confirmed with a dedicated test that updates a `CustomRequest` directly (bypassing every controller) and still triggers the notification.
+
+**Renewal vs. activation nuance**: a renewal webhook doesn't change `Subscription.status` (it's already `active`) — only `current_period_end` moves forward. `wasChanged('status')` alone would silently miss every renewal receipt. `SubscriptionObserver` checks both: a status transition to `active`, *or* an already-`active` subscription whose `current_period_end` changed. Payment reminders aren't a status change at all (`status` stays `pending`), so that one couldn't go through the observer — it's sent directly from `MayarWebhookController`'s `payment.reminder` handler instead.
+
+**Caught before it shipped**: `SubscriptionEnded`'s first draft claimed "you'll need an active subscription to create new [invitations] or publish changes" — checked `InvitationPolicy::update()` before finalizing the copy and found editing/publishing existing invitations was never entitlement-gated (only `create()` is). Fixed the copy to only claim what's actually true rather than ship user-facing text that misrepresents the product.
+
+**Tests**: added notification assertions to the existing RSVP, Mayar webhook, and custom-request-build tests (the real integration points), plus two new tests — payment.reminder → `SubscriptionPaymentReminder`, and payment.received on an already-active subscription → renewal still notifies. Added one model-level `CustomRequestObserverTest` proving the observer fires from a direct `update()` call, independent of any controller, plus that unrelated field updates don't spuriously notify. Full suite: 77/77 passing.
 
 ## Phase 11 — Testing
 

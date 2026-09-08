@@ -314,7 +314,12 @@ return [
         // only values that activate auto-exclusion of Filament panel paths and
         // framework routes. Other values (including null) are treated as a
         // literal prefix with no auto-exclusion.
-        'prefix' => 'pages',
+        //
+        // Bundled frontend routes are disabled (enabled => false above); this
+        // value is still read by Page::getUrl() for SEO (og:url, canonical,
+        // JSON-LD), so it must match our own public route (routes/web.php,
+        // InvitationPageController) — not Layup's unused '/pages/*' default.
+        'prefix' => 'i',
 
         'middleware' => ['web'],
         'domain' => null,

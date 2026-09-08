@@ -22,6 +22,20 @@ class User extends Authenticatable implements FilamentUser
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable;
 
+    /**
+     * In-memory default matching the `role` column's DB default. Without
+     * this, a freshly `create()`d model (e.g. Filament's own registration
+     * flow, which never submits `role`) has a null `role` attribute in
+     * memory until the next request re-fetches it from the DB — meaning
+     * canAccessPanel() would wrongly deny a customer immediately after they
+     * register, on that same request.
+     *
+     * @var array<string, mixed>
+     */
+    protected $attributes = [
+        'role' => 'customer',
+    ];
+
     public function canAccessPanel(Panel $panel): bool
     {
         return match ($panel->getId()) {

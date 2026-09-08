@@ -29,6 +29,7 @@ class UserPanelProvider extends PanelProvider
             ->path('user')
             ->login()
             ->registration()
+            ->passwordReset()
             ->colors([
                 'primary' => Color::Blue,
             ])

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\MayarWebhookEvent;
 use App\Models\Plan;
 use App\Models\Subscription;
+use App\Notifications\SubscriptionPaymentReminder;
 use App\SubscriptionStatus;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -48,6 +49,7 @@ class MayarWebhookController extends Controller
 
         match ($event) {
             'payment.received' => $this->handlePaymentReceived($payload),
+            'payment.reminder' => $this->handlePaymentReminder($payload),
             'membership.memberExpired' => $this->updateSubscriptionStatus($payload, SubscriptionStatus::Expired),
             'membership.memberUnsubscribed' => $this->updateSubscriptionStatus($payload, SubscriptionStatus::Cancelled),
             'membership.changeTierMemberRegistered' => $this->handleTierChange($payload),
@@ -92,6 +94,20 @@ class MayarWebhookController extends Controller
             'status' => SubscriptionStatus::Active,
             'current_period_end' => $data['membershipCustomer']['expiredAt'] ?? $data['expiredAt'] ?? null,
         ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    protected function handlePaymentReminder(array $payload): void
+    {
+        $subscription = $this->resolveSubscription($payload);
+
+        if (! $subscription) {
+            return;
+        }
+
+        $subscription->user->notify(new SubscriptionPaymentReminder($subscription->plan));
     }
 
     /**

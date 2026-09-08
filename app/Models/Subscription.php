@@ -2,12 +2,15 @@
 
 namespace App\Models;
 
+use App\Observers\SubscriptionObserver;
 use App\SubscriptionStatus;
 use Database\Factories\SubscriptionFactory;
+use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
+#[ObservedBy(SubscriptionObserver::class)]
 class Subscription extends Model
 {
     /** @use HasFactory<SubscriptionFactory> */
