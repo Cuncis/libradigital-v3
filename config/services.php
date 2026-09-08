@@ -35,4 +35,15 @@ return [
         ],
     ],
 
+    'mayar' => [
+        'api_key' => env('MAYAR_API_KEY'),
+        'webhook_token' => env('MAYAR_WEBHOOK_TOKEN'),
+        'is_production' => env('MAYAR_IS_PRODUCTION', false),
+        // Override only if Mayar's sandbox/production hosts change; otherwise
+        // this is derived from is_production (api.mayar.id vs api.mayar.club).
+        'base_url' => env('MAYAR_API_BASE'),
+        // The single Mayar membership product covering all local Plan tiers.
+        'product_id' => env('MAYAR_PRODUCT_ID'),
+    ],
+
 ];

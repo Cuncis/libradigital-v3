@@ -3,8 +3,11 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\SubscriptionStatus;
 use App\UserRole;
 use Database\Factories\UserFactory;
+use Filament\Models\Contracts\FilamentUser;
+use Filament\Panel;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -12,12 +15,21 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
-#[Fillable(['name', 'email', 'password', 'role'])]
+#[Fillable(['name', 'email', 'phone', 'password', 'role'])]
 #[Hidden(['password', 'remember_token'])]
-class User extends Authenticatable
+class User extends Authenticatable implements FilamentUser
 {
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable;
+
+    public function canAccessPanel(Panel $panel): bool
+    {
+        return match ($panel->getId()) {
+            'admin' => $this->role === UserRole::Admin,
+            'user' => $this->role === UserRole::Customer,
+            default => false,
+        };
+    }
 
     /**
      * Get the attributes that should be cast.
@@ -51,5 +63,37 @@ class User extends Authenticatable
     public function assignedCustomRequests(): HasMany
     {
         return $this->hasMany(CustomRequest::class, 'assigned_admin_id');
+    }
+
+    public function activeSubscription(): ?Subscription
+    {
+        return $this->subscriptions()
+            ->where('status', SubscriptionStatus::Active)
+            ->latest('current_period_end')
+            ->first();
+    }
+
+    public function currentPlan(): ?Plan
+    {
+        return $this->activeSubscription()?->plan;
+    }
+
+    /**
+     * Whether the user's current plan allows creating another invitation.
+     * False with no active subscription — there's no free tier.
+     */
+    public function canCreateInvitation(): bool
+    {
+        $plan = $this->currentPlan();
+
+        if (! $plan) {
+            return false;
+        }
+
+        if ($plan->invitation_limit === null) {
+            return true;
+        }
+
+        return $this->invitations()->count() < $plan->invitation_limit;
     }
 }

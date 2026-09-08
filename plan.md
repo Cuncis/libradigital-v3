@@ -74,31 +74,38 @@ Both paths converge on the same `Invitation` model/editor — custom requests ar
 - New: `App\SubscriptionStatus`, `App\CustomRequestStatus`, `App\RsvpStatus` enums added (same pattern as Phase 1's `App\UserRole`) for the status/attending columns above.
 - Fixed while building: `SubscriptionFactory`'s default `plan_id` was colliding with the seeded `Plan` catalog's unique `(tier, billing_interval)` constraint — now reuses an existing `Plan` row when one exists, falls back to the factory only when the table is empty.
 
-## Phase 3 — Auth & panel access
+## Phase 3 — Auth & panel access ✅ done
 
-- [ ] Registration flow for customers (`/register` or via the pricing CTA) — creates `User` with `role = customer`.
-- [ ] `AdminPanelProvider`: `canAccessPanel()` restricted to `role === 'admin'`.
-- [ ] New `UserPanelProvider` (`id: 'user'`, `path: 'user'`): `canAccessPanel()` restricted to `role === 'customer'`; login page at `/user/login`.
-- [ ] Every resource/query in the `user` panel scoped to `auth()->id()` (global scope on `Invitation`/`CustomRequest` when accessed outside admin context, or `modifyQueryUsing` per resource — pick one convention and apply consistently).
-- [ ] Redirect logic: logged-in customer hitting `/` sees marketing page with an authenticated CTA ("Go to dashboard") instead of "Sign up".
+- [x] Registration flow for customers — enabled Filament's built-in `->registration()` on the `user` panel (`/user/register`). No custom Register page needed: the registration form only collects name/email/password, and `role` isn't among them, so every self-registered user gets `role = customer` from the migration's column default. Admin accounts are staff-provisioned only (seeding/tinker), no self-registration on `/admin`.
+- [x] `User implements FilamentUser`, single `canAccessPanel()` keyed off `$panel->getId()`: `admin` → `UserRole::Admin`, `user` → `UserRole::Customer`, anything else → false. Verified via tinker against both seeded test users (admin@example.com / test@example.com) — correct in both directions, and via HTTP that `/admin` redirects guests to login (302) while `/user/login` and `/user/register` both resolve (200).
+- [x] New `UserPanelProvider` (`id: 'user'`, `path: 'user'`, scaffolded via `php artisan make:filament-panel user` and auto-registered in `bootstrap/providers.php`) — distinct primary color (Blue vs admin's Amber) so the two panels are visually distinguishable, resources auto-discovered from `App\Filament\User\Resources` (kept separate from admin's `App\Filament\Resources` namespace on purpose, since Phase 6/7 need distinct `InvitationResource` classes with different query scope per panel). `LayupPlugin` registered here too (mirrors Phase 1's admin setup) since the `/user` panel's `InvitationResource` will need the builder field in Phase 6.
+- [x] Redirect logic on `/`: implemented as an immediate redirect for already-authenticated visitors (`/admin` or `/user` depending on role) rather than a CTA swap on the marketing page — the current `welcome.blade.php` is still Laravel's default placeholder, not the real marketing page Phase 5 builds, so redirecting away is simpler than theming a page that's about to be replaced anyway. **Worth revisiting in Phase 5** if you'd rather a logged-in visitor see the real marketing page with a "Go to dashboard" CTA instead of bouncing immediately — easy to swap then.
+- [ ] Resource/query scoping to `auth()->id()` — **deferred to Phase 6/7**, not done here: there are no Filament resources anywhere in the app yet (`app/Filament/Resources` was empty), so there's nothing to scope. The convention itself is already decided (manual scoping, not Filament tenancy — see "Decisions made" above); it gets applied the moment `InvitationResource`/`CustomRequestResource` are created.
 
-## Phase 4 — Billing & subscriptions (Mayar.id)
+## Phase 4 — Billing & subscriptions (Mayar.id) ✅ done
 
-No Cashier-equivalent exists for Mayar, so this is a small hand-rolled integration rather than a package install. Core principle from Mayar's own docs: **the browser redirect is UX, the webhook is truth** — never mark a subscription active on redirect alone, only on a confirmed webhook.
+No Cashier-equivalent exists for Mayar, so this is a hand-rolled integration. Core principle from Mayar's own docs: **the browser redirect is UX, the webhook is truth** — never mark a subscription active on redirect alone, only on a confirmed webhook.
 
-- [ ] Env vars: `MAYAR_API_KEY` (bearer token), `MAYAR_API_BASE` (sandbox `api.mayar.club/hl/v2`, production `api.mayar.id/hl/v2`), `MAYAR_WEBHOOK_TOKEN` (verification token), plus a `MAYAR_TIER_ID`/`MAYAR_PRODUCT_ID` per `Plan` (set on the `Plan` model, one Mayar product/tier per local plan).
-- [ ] `App\Services\Mayar\MayarClient` — thin HTTP client (`Http::withToken(...)->baseUrl(...)`) wrapping: `POST /memberships/members/create`, `POST /memberships/members/{memberId}/invoice/create`.
-- [ ] `Subscription` model stores `mayar_member_id`, `mayar_invoice_id`, `status` (`pending`, `active`, `expired`, `cancelled`), `current_period_end`.
-- [ ] Checkout flow: user picks a `Plan` → create `Subscription` row as `pending` → call `MayarClient` to create the member + invoice → store the returned Mayar IDs on the pending `Subscription` → redirect the user to the returned `membershipBillUrl` (Mayar's hosted checkout page).
-- [ ] Webhook endpoint (`POST /webhooks/mayar`, CSRF-exempt): verify the shared token (query param, per Mayar's documented pattern — **re-check Mayar's dashboard/support for the current verification mechanism before going live, their public docs don't fully spell out signature verification**), log the raw payload, and store the event id for idempotency (skip if already processed) before acting.
-  - `payment.received` (status `SUCCESS`) → find `Subscription` by `mayar_member_id`/`mayar_invoice_id`, set `active`, set `current_period_end` from `membershipCustomer.expiredAt`.
-  - `membership.memberExpired`, `membership.memberUnsubscribed` → set `Subscription.status` accordingly, revoke access immediately.
-  - `membership.changeTierMemberRegistered` → swap the linked `Plan`.
-  - `payment.reminder` → optional: notify the user their payment is incomplete.
-  - Always return HTTP 200 once the payload is safely accepted, even if processing is deferred to a queued job.
-- [ ] Entitlement checks read `Subscription.status === 'active'`: block creating a new `Invitation` past `plan.invitation_limit`; gate premium features (custom domain, branding removal) behind `plan.features`.
-- [ ] Billing status page inside `/user` (current plan, renewal date, "manage on Mayar" link) — Mayar hosts its own billing portal, so this is a read-only summary plus a link out, not a custom portal build.
-- [ ] `Plan` seeding matches real pricing tiers and their Mayar product/tier IDs (confirm numbers + Mayar-side product setup before building checkout UI).
+**Real API shapes, confirmed against `docs.mayar.id/api-reference-v2` (not guessed):**
+- `POST /hl/v2/memberships/members/create` — body: `productId`, `membershipTierId`, `customerInfo.{name,email,mobile}`, `membershipMonthlyPeriod`. Returns `data.membershipCustomer.{id, memberId, expiredAt, ...}`.
+- `POST /hl/v2/memberships/members/{memberId}/invoice/create` — `{memberId}` is the short `memberId` code (e.g. `MBR8X2QK`), not the `id` UUID. Body: `productId`. Returns `data.{id, membershipBillUrl, expiredAt}`.
+- **Important correction to the original plan**: `membershipTierId` and billing interval are *orthogonal* — one Mayar tier covers both monthly and yearly via `membershipMonthlyPeriod` (1 or 12), priced per-period inside Mayar's own dashboard. So Mayar-side you create **4 tiers** (Starter/Plus/Pro/Organizer), not 8. Locally, `Plan.mayar_tier_id` is **shared** across a tier's monthly and yearly row (e.g. "Starter Monthly" and "Starter Yearly" both point at the same Mayar tier id) — no schema change needed, just how the column gets populated.
+- Webhook signature verification is genuinely undocumented publicly (confirmed via docs + a working integration writeup) — implemented as a shared `?token=` query param on the registered webhook URL instead. **Still flagged as needing reconfirmation with Mayar support before relying on it in production.**
+
+- [x] Env vars — `MAYAR_API_KEY`, `MAYAR_WEBHOOK_TOKEN`, `MAYAR_IS_PRODUCTION` were already in `.env` (user-provided). Added `MAYAR_PRODUCT_ID` (placeholder, empty — **your action item**: create one Mayar membership product with 4 tiers, monthly+yearly priced per tier, paste the product id here and each tier's id into the matching `Plan` rows' `mayar_tier_id`. Nothing checkout-related will actually succeed against real Mayar until this is done). Config centralized in `config/services.php` under `mayar`, base URL derived from `is_production` (`api.mayar.id` vs `api.mayar.club`) unless `MAYAR_API_BASE` overrides it.
+- [x] `App\Services\Mayar\MayarClient` — `createMember()`, `createInvoice()`, matching the confirmed shapes above.
+- [x] `Subscription` model — unchanged from Phase 2, fields already fit.
+- [x] `App\Services\SubscriptionCheckoutService::checkout(User, Plan): string` — creates the `Subscription` row `pending`, calls Mayar, returns `membershipBillUrl`. `SubscriptionController@checkout` (`POST /subscribe/{plan}`, `auth` middleware) drives it and redirects.
+- [x] `MayarWebhookController` (`POST /webhooks/mayar`, CSRF-exempted in `bootstrap/app.php`) — token check via `hash_equals`, every delivery logged, `MayarWebhookEvent` table records `event_key` (event + data id, or a payload hash) before acting so retries are no-ops. Handles `payment.received`, `membership.memberExpired`, `membership.memberUnsubscribed`, `membership.changeTierMemberRegistered`; unhandled events are logged, not errored. Always returns 200 once accepted.
+- [x] Entitlement checks — `User::activeSubscription()`, `currentPlan()`, `canCreateInvitation()` (false with no active subscription — there's no free tier). Not wired into any UI yet since `InvitationResource` doesn't exist (Phase 6).
+- [x] Billing status page inside `/user` (`/user/billing`, Filament `Billing` page) — current plan + renewal date, honest note that Mayar doesn't expose a self-service portal URl via API so there's no "manage" link, plus plain HTML forms (grouped by tier) to subscribe. Collects phone number inline when missing (required by Mayar's `customerInfo.mobile`) — added a `phone` column to `users` for this.
+- [ ] `Plan.mayar_tier_id` population — still null on all 8 seeded rows. **Blocked on your Mayar-side product/tier setup**, see above.
+
+**Bugs found and fixed while building this:**
+- `SubscriptionController`'s `auth` middleware redirected unauthenticated requests to a bare `route('login')` that doesn't exist (only the two panels' own named login routes do) — would have 500'd for every guest. Fixed via `Authenticate::redirectUsing()` in `AppServiceProvider` pointing at `/user/login`.
+- The Billing page's first draft stored `plansByTier` (a grouped collection of collections) as a public Livewire property, which crashed on mount — Livewire's Eloquent-collection synthesizer can't serialize a collection of collections. Fixed by switching both `activeSubscription` and `plansByTier` to Livewire `#[Computed]` methods instead of stored public state (correct pattern for read-only display data anyway).
+
+**Tests added** (`tests/Feature/MayarWebhookControllerTest.php`, `SubscriptionControllerTest.php`, `Services/SubscriptionCheckoutServiceTest.php`, `Filament/User/BillingPageTest.php`) — 13 new tests, all outbound Mayar calls faked via `Http::fake()` + `Http::preventStrayRequests()`, covering: token verification, webhook idempotency, payment/expiry/tier-change handling, checkout's phone/tier-id guard clauses, and panel access to the billing page. Full suite: 18/18 passing.
 
 ## Phase 5 — Landing page (`/`)
 
