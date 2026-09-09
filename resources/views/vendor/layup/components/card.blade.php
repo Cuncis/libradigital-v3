@@ -9,7 +9,7 @@
      {!! \Crumbls\Layup\View\BaseView::animationAttributes($data) !!}
 >
     @if(!empty($data['image']))
-        <img src="{{ \Illuminate\Support\Facades\Storage::disk(config('layup.uploads.disk', 'public'))->url($data['image']) }}" alt="{{ $data['title'] ?? '' }}" class="w-full h-48 object-cover" />
+        <img src="{{ (str_starts_with($data['image'], 'http') ? $data['image'] : \Illuminate\Support\Facades\Storage::disk(config('layup.uploads.disk', 'public'))->url($data['image'])) }}" alt="{{ $data['title'] ?? '' }}" class="w-full h-48 object-cover" />
     @endif
     <div class="p-5">
         @if(!empty($data['title']))

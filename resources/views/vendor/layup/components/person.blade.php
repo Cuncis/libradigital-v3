@@ -1,6 +1,6 @@
 <div @if(!empty($data['id']))id="{{ $data['id'] }}"@endif class="text-center {{ \Crumbls\Layup\View\BaseView::visibilityClasses($data['hide_on'] ?? []) }} {{ $data['class'] ?? '' }}" style="{{ \Crumbls\Layup\View\BaseView::buildInlineStyles($data) }}" {!! \Crumbls\Layup\View\BaseView::animationAttributes($data) !!}>
     @if(!empty($data['photo']))
-        <img src="{{ \Illuminate\Support\Facades\Storage::disk(config('layup.uploads.disk', 'public'))->url($data['photo']) }}" alt="{{ $data['name'] ?? '' }}" class="w-20 h-20 md:w-24 md:h-24 rounded-full object-cover mx-auto mb-4" />
+        <img src="{{ (str_starts_with($data['photo'], 'http') ? $data['photo'] : \Illuminate\Support\Facades\Storage::disk(config('layup.uploads.disk', 'public'))->url($data['photo'])) }}" alt="{{ $data['name'] ?? '' }}" class="w-20 h-20 md:w-24 md:h-24 rounded-full object-cover mx-auto mb-4" />
     @endif
     @if(!empty($data['name']))
         <h3 class="text-lg font-semibold">{{ $data['name'] }}</h3>

@@ -8,7 +8,7 @@
      style="{{ \Crumbls\Layup\View\BaseView::buildInlineStyles($data) }}"
      {!! \Crumbls\Layup\View\BaseView::animationAttributes($data) !!}
 >
-    <img src="{{ \Illuminate\Support\Facades\Storage::disk(config('layup.uploads.disk', 'public'))->url($data['image']) }}" alt="" class="w-full h-auto block rounded" />
+    <img src="{{ (str_starts_with($data['image'], 'http') ? $data['image'] : \Illuminate\Support\Facades\Storage::disk(config('layup.uploads.disk', 'public'))->url($data['image'])) }}" alt="" class="w-full h-auto block rounded" />
     @foreach(($data['hotspots'] ?? []) as $spot)
         <div class="absolute" style="left: {{ $spot['x'] ?? 50 }}%; top: {{ $spot['y'] ?? 50 }}%; transform: translate(-50%, -50%)" x-data="{ open: false }">
             <button @click="open = !open" @click.outside="open = false"

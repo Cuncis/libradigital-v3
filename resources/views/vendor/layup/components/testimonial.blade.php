@@ -7,7 +7,7 @@
     @endif
     <div class="flex items-center gap-3">
         @if(!empty($data['photo']))
-            <img src="{{ \Illuminate\Support\Facades\Storage::disk(config('layup.uploads.disk', 'public'))->url($data['photo']) }}" alt="{{ $data['author'] ?? '' }}" class="w-10 h-10 rounded-full object-cover" />
+            <img src="{{ (str_starts_with($data['photo'], 'http') ? $data['photo'] : \Illuminate\Support\Facades\Storage::disk(config('layup.uploads.disk', 'public'))->url($data['photo'])) }}" alt="{{ $data['author'] ?? '' }}" class="w-10 h-10 rounded-full object-cover" />
         @endif
         <div>
             @if(!empty($data['author']))

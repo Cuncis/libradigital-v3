@@ -11,7 +11,7 @@
             default => '',
         };
     @endphp
-    <img src="{{ is_array($data['src']) ? '' : \Illuminate\Support\Facades\Storage::disk(config('layup.uploads.disk', 'public'))->url($data['src']) }}" alt="{{ $data['alt'] ?? '' }}" class="max-w-full h-auto {{ $hoverClass }}" />
+    <img src="{{ is_array($data['src']) ? '' : (str_starts_with($data['src'], 'http') ? $data['src'] : \Illuminate\Support\Facades\Storage::disk(config('layup.uploads.disk', 'public'))->url($data['src'])) }}" alt="{{ $data['alt'] ?? '' }}" class="max-w-full h-auto {{ $hoverClass }}" />
     @if(!empty($data['link_url']))</a>@endif
     @if(!empty($data['caption']))
         <figcaption class="mt-2 text-sm text-gray-500 dark:text-gray-400 text-center">{{ $data['caption'] }}</figcaption>

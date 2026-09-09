@@ -26,7 +26,7 @@ class="relative overflow-hidden {{ \Crumbls\Layup\View\BaseView::visibilityClass
                     aria-roledescription="slide"
                     aria-label="Slide {{ $index + 1 }} of {{ $slideCount }}"
                     @if(!empty($slide['image']))
-                        style="background-image:url('{{ \Illuminate\Support\Facades\Storage::disk(config('layup.uploads.disk', 'public'))->url($slide['image']) }}');background-size:cover;background-position:center"
+                        style="background-image:url('{{ (str_starts_with($slide['image'], 'http') ? $slide['image'] : \Illuminate\Support\Facades\Storage::disk(config('layup.uploads.disk', 'public'))->url($slide['image'])) }}');background-size:cover;background-position:center"
                     @endif
             >
                 <div class="max-w-2xl mx-auto text-center p-4 md:p-8">

@@ -10,7 +10,7 @@
      {!! \Crumbls\Layup\View\BaseView::animationAttributes($data) !!}
 >
     @if(!empty($data['bg_image']))
-        <img src="{{ \Illuminate\Support\Facades\Storage::disk(config('layup.uploads.disk', 'public'))->url($data['bg_image']) }}" alt="" class="absolute inset-0 w-full h-full object-cover" />
+        <img src="{{ (str_starts_with($data['bg_image'], 'http') ? $data['bg_image'] : \Illuminate\Support\Facades\Storage::disk(config('layup.uploads.disk', 'public'))->url($data['bg_image'])) }}" alt="" class="absolute inset-0 w-full h-full object-cover" />
         <div class="absolute inset-0 bg-black/40"></div>
     @endif
     <div class="relative z-10">

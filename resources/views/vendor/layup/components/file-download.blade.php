@@ -11,6 +11,6 @@
         @if(!empty($data['file_size']))<div class="text-xs text-gray-400 dark:text-gray-500 mt-1">{{ $data['file_size'] }}</div>@endif
     </div>
     @if(!empty($data['file']))
-        <a href="{{ \Illuminate\Support\Facades\Storage::disk(config('layup.uploads.disk', 'public'))->url($data['file']) }}" download class="layup-bg-primary text-white text-sm font-medium px-4 py-2 rounded-lg layup-hover-bg-primary transition-colors">{{ $data['button_text'] ?? __('layup::frontend.file_download.download') }}</a>
+        <a href="{{ (str_starts_with($data['file'], 'http') ? $data['file'] : \Illuminate\Support\Facades\Storage::disk(config('layup.uploads.disk', 'public'))->url($data['file'])) }}" download class="layup-bg-primary text-white text-sm font-medium px-4 py-2 rounded-lg layup-hover-bg-primary transition-colors">{{ $data['button_text'] ?? __('layup::frontend.file_download.download') }}</a>
     @endif
 </div>

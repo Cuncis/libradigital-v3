@@ -5,7 +5,7 @@
      style="{{ \Crumbls\Layup\View\BaseView::buildInlineStyles($data) }}"
      {!! \Crumbls\Layup\View\BaseView::animationAttributes($data) !!}
 >
-    <img src="{{ \Illuminate\Support\Facades\Storage::disk(config('layup.uploads.disk', 'public'))->url($data['image']) }}" alt="" class="w-full h-auto" />
+    <img src="{{ (str_starts_with($data['image'], 'http') ? $data['image'] : \Illuminate\Support\Facades\Storage::disk(config('layup.uploads.disk', 'public'))->url($data['image'])) }}" alt="" class="w-full h-auto" />
     @foreach(($data['points'] ?? []) as $i => $point)
         <div class="absolute" style="left: {{ $point['x'] ?? 50 }}%; top: {{ $point['y'] ?? 50 }}%; transform: translate(-50%, -50%)"
              x-data="{ show: false }">

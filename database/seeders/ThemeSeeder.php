@@ -13,37 +13,48 @@ class ThemeSeeder extends Seeder
      */
     public function run(): void
     {
-        Theme::query()->create([
-            'name' => 'Blank',
-            'description' => 'Start from an empty canvas.',
-            'category' => 'general',
-            'content' => ['rows' => []],
-            'is_active' => true,
-        ]);
+        // updateOrCreate, not create — this seeder is re-run often while
+        // iterating on starter content, and a plain create() duplicates the
+        // catalog every time (happened twice already).
+        Theme::query()->updateOrCreate(
+            ['name' => 'Blank'],
+            [
+                'description' => 'Start from an empty canvas.',
+                'category' => 'general',
+                'content' => ['rows' => []],
+                'is_active' => true,
+            ]
+        );
 
-        Theme::query()->create([
-            'name' => 'Elegant Wedding',
-            'description' => 'Hero, countdown, gallery, and venue map for a classic wedding invitation.',
-            'category' => 'wedding',
-            'content' => $this->weddingContent(),
-            'is_active' => true,
-        ]);
+        Theme::query()->updateOrCreate(
+            ['name' => 'Elegant Wedding'],
+            [
+                'description' => 'Hero, countdown, gallery, and venue map for a classic wedding invitation.',
+                'category' => 'wedding',
+                'content' => $this->weddingContent(),
+                'is_active' => true,
+            ]
+        );
 
-        Theme::query()->create([
-            'name' => 'Modern Birthday',
-            'description' => 'Bold hero and countdown for a birthday celebration.',
-            'category' => 'birthday',
-            'content' => $this->birthdayContent(),
-            'is_active' => true,
-        ]);
+        Theme::query()->updateOrCreate(
+            ['name' => 'Modern Birthday'],
+            [
+                'description' => 'Bold hero and countdown for a birthday celebration.',
+                'category' => 'birthday',
+                'content' => $this->birthdayContent(),
+                'is_active' => true,
+            ]
+        );
 
-        Theme::query()->create([
-            'name' => 'Corporate Event',
-            'description' => 'Clean hero, agenda heading, and venue map for a corporate event.',
-            'category' => 'corporate',
-            'content' => $this->corporateContent(),
-            'is_active' => true,
-        ]);
+        Theme::query()->updateOrCreate(
+            ['name' => 'Corporate Event'],
+            [
+                'description' => 'Clean hero, agenda heading, and venue map for a corporate event.',
+                'category' => 'corporate',
+                'content' => $this->corporateContent(),
+                'is_active' => true,
+            ]
+        );
     }
 
     protected function weddingContent(): array
@@ -52,8 +63,8 @@ class ThemeSeeder extends Seeder
             'rows' => [
                 $this->row([
                     $this->widget('hero', [
-                        'title' => 'The Wedding Of',
-                        'subtitle' => 'Bride & Groom',
+                        'heading' => 'The Wedding Of',
+                        'subheading' => 'Bride & Groom',
                     ]),
                 ]),
                 $this->row([
@@ -82,8 +93,8 @@ class ThemeSeeder extends Seeder
             'rows' => [
                 $this->row([
                     $this->widget('hero', [
-                        'title' => "You're Invited",
-                        'subtitle' => 'Birthday Celebration',
+                        'heading' => "You're Invited",
+                        'subheading' => 'Birthday Celebration',
                     ]),
                 ]),
                 $this->row([
@@ -104,8 +115,8 @@ class ThemeSeeder extends Seeder
             'rows' => [
                 $this->row([
                     $this->widget('hero', [
-                        'title' => 'You Are Invited',
-                        'subtitle' => 'Company Event',
+                        'heading' => 'You Are Invited',
+                        'subheading' => 'Company Event',
                     ]),
                 ]),
                 $this->row([

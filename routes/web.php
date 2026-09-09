@@ -9,6 +9,7 @@ use App\Http\Controllers\MayarWebhookController;
 use App\Http\Controllers\RsvpExportController;
 use App\Http\Controllers\RsvpSubmissionController;
 use App\Http\Controllers\SubscriptionController;
+use App\Http\Controllers\ThemePreviewController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', [LandingController::class, 'index'])->name('landing');
@@ -37,6 +38,10 @@ Route::get('/i/{slug}', InvitationPageController::class)
 Route::get('/invitations/{invitation}/preview', InvitationPreviewController::class)
     ->middleware('auth')
     ->name('invitations.preview');
+
+Route::get('/themes/{theme}/preview', ThemePreviewController::class)
+    ->middleware('auth')
+    ->name('themes.preview');
 
 Route::post('/i/{invitation:slug}/rsvp', [RsvpSubmissionController::class, 'store'])
     ->name('rsvps.store');

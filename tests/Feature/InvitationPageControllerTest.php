@@ -125,6 +125,36 @@ class InvitationPageControllerTest extends TestCase
         $response->assertDontSee('/storage/invitations/photo.jpg', false);
     }
 
+    public function test_image_widget_passes_through_an_already_absolute_url_unchanged(): void
+    {
+        Storage::shouldReceive('disk')->never();
+
+        $invitation = Invitation::factory()->published()->create([
+            'slug' => 'amara-reyhan',
+            'content' => [
+                'rows' => [[
+                    'id' => 'row_1',
+                    'settings' => [],
+                    'columns' => [[
+                        'id' => 'col_1',
+                        'span' => ['sm' => 12, 'md' => 12, 'lg' => 12, 'xl' => 12],
+                        'settings' => [],
+                        'widgets' => [[
+                            'id' => 'widget_1',
+                            'type' => 'image',
+                            'data' => ['src' => 'https://example.test/photo.jpg'],
+                        ]],
+                    ]],
+                ]],
+            ],
+        ]);
+
+        $response = $this->get('/i/amara-reyhan');
+
+        $response->assertOk();
+        $response->assertSee('https://example.test/photo.jpg', false);
+    }
+
     /**
      * Regression: Layup's tree-builder has no error handling for a
      * malformed row/column/widget entry (unlike individual widgets, which

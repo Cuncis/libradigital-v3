@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Crumbls\Layup\Concerns\HasLayupContent;
 use Database\Factories\ThemeFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -11,7 +12,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Theme extends Model
 {
     /** @use HasFactory<ThemeFactory> */
-    use HasFactory;
+    use HasFactory, HasLayupContent;
 
     protected $fillable = [
         'name',
@@ -38,5 +39,15 @@ class Theme extends Model
     public function scopeActive(Builder $query): Builder
     {
         return $query->where('is_active', true);
+    }
+
+    /**
+     * Layup's default frontend view (layup::frontend.page) unconditionally
+     * calls this on whatever record it's given — needed for ThemePreviewController
+     * to reuse that view rather than forking it just for themes.
+     */
+    public function getMetaTitle(): string
+    {
+        return $this->name;
     }
 }

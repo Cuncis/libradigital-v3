@@ -30,7 +30,7 @@
                 <blockquote class="text-base md:text-lg italic text-gray-700 dark:text-gray-200 mb-4 max-w-2xl mx-auto">"{{ $t['quote'] ?? '' }}"</blockquote>
                 <div class="flex items-center justify-center gap-3">
                     @if(!empty($t['avatar']))
-                        <img src="{{ \Illuminate\Support\Facades\Storage::disk(config('layup.uploads.disk', 'public'))->url($t['avatar']) }}" alt="" class="w-12 h-12 rounded-full object-cover" />
+                        <img src="{{ (str_starts_with($t['avatar'], 'http') ? $t['avatar'] : \Illuminate\Support\Facades\Storage::disk(config('layup.uploads.disk', 'public'))->url($t['avatar'])) }}" alt="" class="w-12 h-12 rounded-full object-cover" />
                     @endif
                     <div class="text-left">
                         <div class="font-semibold">{{ $t['name'] ?? '' }}</div>
