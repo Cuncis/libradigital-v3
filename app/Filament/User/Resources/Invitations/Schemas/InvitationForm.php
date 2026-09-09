@@ -2,8 +2,8 @@
 
 namespace App\Filament\User\Resources\Invitations\Schemas;
 
+use App\Layup\Forms\Components\LayupBuilder;
 use App\Models\Theme;
-use Crumbls\Layup\Forms\Components\LayupBuilder;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;

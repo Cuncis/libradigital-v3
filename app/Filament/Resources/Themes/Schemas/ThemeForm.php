@@ -2,7 +2,7 @@
 
 namespace App\Filament\Resources\Themes\Schemas;
 
-use Crumbls\Layup\Forms\Components\LayupBuilder;
+use App\Layup\Forms\Components\LayupBuilder;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;

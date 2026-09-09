@@ -9,19 +9,27 @@
 
         @vite(['resources/css/invitation.css', 'resources/js/invitation.js'])
     </head>
-    <body class="min-h-screen bg-white font-sans text-gray-900 antialiased">
-        @if (isset($layupPage) && $layupPage->status !== 'published')
-            <div class="bg-amber-50 px-4 py-2 text-center text-sm font-medium text-amber-800">
-                Preview — not published yet. Guests can't see this page.
-            </div>
-        @endif
+    {{--
+        Guests almost exclusively open this on a phone, so the page is
+        pinned to a phone-width column even on a desktop/tablet browser
+        (rather than a responsive layout that stretches on wider screens) —
+        centered on a neutral backdrop, like a phone-card look.
+    --}}
+    <body class="min-h-screen bg-gray-100 font-sans text-gray-900 antialiased">
+        <div class="mx-auto min-h-screen w-full max-w-[430px] bg-white shadow-xl">
+            @if (isset($layupPage) && $layupPage->status !== 'published')
+                <div class="bg-amber-50 px-4 py-2 text-center text-sm font-medium text-amber-800">
+                    Preview — not published yet. Guests can't see this page.
+                </div>
+            @endif
 
-        @if ($guestName ?? null)
-            <div data-guest-banner class="bg-gray-50 px-4 py-3 text-center text-sm text-gray-600">
-                Dear {{ $guestName }},
-            </div>
-        @endif
+            @if ($guestName ?? null)
+                <div data-guest-banner class="bg-gray-50 px-4 py-3 text-center text-sm text-gray-600">
+                    Dear {{ $guestName }},
+                </div>
+            @endif
 
-        {{ $slot }}
+            {{ $slot }}
+        </div>
     </body>
 </html>

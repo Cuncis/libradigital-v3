@@ -71,10 +71,55 @@ class LayupBuilderElementorPanelsTest extends TestCase
 
         $response = $this->actingAs($admin)->get("/admin/invitations/{$invitation->id}/edit");
 
+        // Row/column/widget markup itself lives inside the WYSIWYG iframe
+        // now (built server-side by renderCanvasFrame() — see
+        // LayupCanvasFrameTest), not the outer page's light DOM. This just
+        // proves the outer page wires the iframe up and the structure
+        // panel's scroll-to-node methods target it correctly.
         $response->assertOk();
-        $response->assertSee(':data-row-id="row.id"', false);
-        $response->assertSee(':data-col-id="col.id"', false);
-        $response->assertSee(':data-widget-id="widget.id"', false);
+        $response->assertSee('x-ref="canvasFrame"', false);
+        $response->assertSee('@load="onCanvasFrameLoad()"', false);
         $response->assertSee('scrollToWidget', false);
+        $response->assertSee('canvasFrame?.contentDocument', false);
+    }
+
+    /**
+     * Regression: the iframe used to auto-resize itself to its content's
+     * scrollHeight on load (and on every ResizeObserver tick). Widgets
+     * like Hero use `min-height: 70vh` (see hero.blade.php), which
+     * resolves against the iframe's OWN viewport — so growing the iframe
+     * to fit Hero, which then grows again because the iframe grew, is a
+     * circular dependency. It doesn't run away to infinity (the vh
+     * coefficient is < 1, so it's a converging series), but it converges
+     * on a Hero several times taller than the real page, which is exactly
+     * what "my hero is too long" looks like. Fixed by giving the iframe a
+     * fixed viewport height instead and letting it scroll internally.
+     */
+    public function test_the_canvas_iframe_has_a_fixed_height_instead_of_auto_growing_to_its_content(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+
+        $response = $this->actingAs($admin)->get('/admin/invitations/create');
+
+        $response->assertOk();
+        $response->assertSee('.lyp-canvas-frame', false);
+        $response->assertSee('height: 75vh', false);
+    }
+
+    /**
+     * Invitations are guest-facing links almost exclusively opened on a
+     * phone, so the builder canvas only offers a mobile-width preview
+     * (config/layup.php `breakpoints`/`default_breakpoint`) rather than
+     * the desktop/tablet/mobile toggle Layup ships by default.
+     */
+    public function test_the_canvas_only_offers_a_mobile_breakpoint(): void
+    {
+        // The source of truth LayupBuilder::getBreakpointsProperty() reads
+        // from directly. The icon names ('heroicon-o-device-tablet' etc.)
+        // are static strings baked into the Alpine template regardless of
+        // config, so asserting against rendered HTML would false-positive.
+        $this->assertSame(['sm'], array_keys(config('layup.breakpoints')));
+        $this->assertSame('sm', config('layup.default_breakpoint'));
+        $this->assertSame(390, config('layup.breakpoints.sm.width'));
     }
 }

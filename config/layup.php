@@ -475,14 +475,16 @@ return [
     | Breakpoints
     |--------------------------------------------------------------------------
     |
-    | Responsive preview breakpoints shown in the size toggler.
+    | Responsive preview breakpoints shown in the size toggler. Invitations
+    | are guest-facing links almost exclusively opened on a phone, so the
+    | builder canvas only offers a mobile-width preview — width matches a
+    | typical modern phone's CSS viewport (not Tailwind's 640px `sm:`
+    | threshold), so `sm:`/`md:`/`lg:`-prefixed utility classes correctly
+    | stay inactive here the same way they would on a real phone.
     |
     */
     'breakpoints' => [
-        'sm' => ['label' => 'sm', 'width' => 640, 'icon' => 'heroicon-o-device-phone-mobile'],
-        'md' => ['label' => 'md', 'width' => 768, 'icon' => 'heroicon-o-device-tablet'],
-        'lg' => ['label' => 'lg', 'width' => 1024, 'icon' => 'heroicon-o-computer-desktop'],
-        'xl' => ['label' => 'xl', 'width' => 1280, 'icon' => 'heroicon-o-tv'],
+        'sm' => ['label' => 'Mobile', 'width' => 390, 'icon' => 'heroicon-o-device-phone-mobile'],
     ],
 
     /*
@@ -490,7 +492,7 @@ return [
     | Default Breakpoint
     |--------------------------------------------------------------------------
     */
-    'default_breakpoint' => 'lg',
+    'default_breakpoint' => 'sm',
 
     /*
     |--------------------------------------------------------------------------

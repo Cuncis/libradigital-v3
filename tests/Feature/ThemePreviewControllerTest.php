@@ -50,6 +50,9 @@ class ThemePreviewControllerTest extends TestCase
         $response->assertSee('<title>Elegant Wedding</title>', false);
         $response->assertSee('Save The Date');
         $response->assertSee('Theme preview', false);
+        // Pinned to a phone-width column even on desktop/tablet — see
+        // InvitationPageControllerTest::test_the_page_is_pinned_to_a_phone_width_column.
+        $response->assertSee('max-w-[430px]', false);
     }
 
     public function test_customer_cannot_preview_a_theme(): void

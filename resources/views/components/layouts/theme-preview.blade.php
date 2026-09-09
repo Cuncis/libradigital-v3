@@ -8,11 +8,14 @@
 
         @vite(['resources/css/invitation.css', 'resources/js/invitation.js'])
     </head>
-    <body class="min-h-screen bg-white font-sans text-gray-900 antialiased">
-        <div class="bg-blue-50 px-4 py-2 text-center text-sm font-medium text-blue-800">
-            Theme preview — this is the starting point an invitation gets when created from this theme.
-        </div>
+    {{-- Pinned to a phone-width column even on desktop/tablet — see layouts/invitation.blade.php. --}}
+    <body class="min-h-screen bg-gray-100 font-sans text-gray-900 antialiased">
+        <div class="mx-auto min-h-screen w-full max-w-[430px] bg-white shadow-xl">
+            <div class="bg-blue-50 px-4 py-2 text-center text-sm font-medium text-blue-800">
+                Theme preview — this is the starting point an invitation gets when created from this theme.
+            </div>
 
-        {{ $slot }}
+            {{ $slot }}
+        </div>
     </body>
 </html>

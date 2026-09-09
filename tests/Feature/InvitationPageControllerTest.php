@@ -24,6 +24,22 @@ class InvitationPageControllerTest extends TestCase
         $response->assertSee('Amara & Reyhan');
     }
 
+    /**
+     * Guests almost exclusively open invitation links on a phone, so the
+     * page is pinned to a phone-width column even on a desktop/tablet
+     * browser (layouts/invitation.blade.php), rather than a responsive
+     * layout that stretches to fill a wide viewport.
+     */
+    public function test_the_page_is_pinned_to_a_phone_width_column(): void
+    {
+        Invitation::factory()->published()->create(['slug' => 'amara-reyhan']);
+
+        $response = $this->get('/i/amara-reyhan');
+
+        $response->assertOk();
+        $response->assertSee('max-w-[430px]', false);
+    }
+
     public function test_draft_invitation_returns_404(): void
     {
         Invitation::factory()->create(['slug' => 'still-drafting', 'status' => 'draft']);

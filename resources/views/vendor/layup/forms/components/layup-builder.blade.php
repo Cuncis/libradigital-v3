@@ -46,6 +46,19 @@
             color: var(--primary-600) !important;
         }
         .lyp-widget--selected { box-shadow: 0 0 0 2px var(--primary-500); border-radius: 0.375rem; }
+
+        {{--
+            Fixed viewport height, not auto-grown to content: widgets like
+            Hero use `min-height: 70vh` (see hero.blade.php), which resolves
+            against the IFRAME's own viewport. Auto-resizing the iframe to
+            its content's scrollHeight would make that circular — the
+            iframe's height would depend on the Hero's height, which
+            depends on the iframe's height — converging on a hero several
+            times taller than intended instead of the real page's actual
+            proportions. A stable height (this rule) plus the iframe's own
+            native scrollbar for overflow avoids that entirely.
+        --}}
+        .lyp-canvas-frame { display: block; width: 100%; border: 0; height: 75vh; min-height: 28rem; background: var(--color-white); }
     </style>
 @endonce
 
@@ -70,7 +83,7 @@
 
             {{ $getExtraAttributeBag() }}
             class="lyp-wrap"
-            x-on:content-updated.window="pushHistory(); content = Array.isArray($event.detail) ? $event.detail[0] : $event.detail"
+            x-on:content-updated.window="pushHistory(); content = Array.isArray($event.detail) ? $event.detail[0] : $event.detail; renderCanvas()"
             @keydown.window="onKeyDown($event)"
     >
 
@@ -156,212 +169,36 @@
         {{-- Canvas --}}
         <div class="lyp-canvas">
             <div class="lyp-canvas-inner" :style="'max-width:' + breakpoints[currentBreakpoint].width + 'px'">
-                {{-- Ruler --}}
-                <div class="lyp-ruler" :class="{ 'lyp-ruler--hidden': !showRuler }">
-                    <template x-for="i in 12" :key="i">
-                        <div class="lyp-ruler-cell" x-text="i"></div></template></div>
+                {{--
+                    WYSIWYG canvas: a same-origin iframe rendered server-side by
+                    renderCanvasFrame() (App\Layup\Forms\Components\LayupBuilder),
+                    using the real widget views + the real invitation stylesheet —
+                    so this looks like the actual public page, not Layup's generic
+                    placeholder boxes. Being same-origin means the click/drag
+                    handlers wired in onCanvasFrameLoad() below can talk directly
+                    to this same Alpine component's existing row/column/widget
+                    methods (rowEdit, widgetAdd, onDropCol, etc.) with no
+                    postMessage bridge needed.
+                --}}
+                <iframe x-ref="canvasFrame" @load="onCanvasFrameLoad()" class="lyp-canvas-frame" title="Invitation content"></iframe>
 
-                {{-- Rows --}}
-                <div class="lyp-rows group">
-                    {{-- Insert zone before first row --}}
-                    <div class="lyp-insert-zone" x-data="{ showTemplates: false }" @mouseenter="$el.classList.add('lyp-insert-zone--hover')" @mouseleave="if(!showTemplates) $el.classList.remove('lyp-insert-zone--hover')">
-                        <div class="lyp-insert-line">
-                            <button
-                                    type="button"
-                                    @click.stop="showTemplates = !showTemplates" class="lyp-insert-btn" title="{{ __('layup::builder.add_row') }}">
-                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg></button></div>
-                        <div x-show="showTemplates" @click.away="showTemplates = false; $el.closest('.lyp-insert-zone').classList.remove('lyp-insert-zone--hover')" x-transition class="lyp-templates lyp-templates--inline">
-                            <p>{{ __('layup::builder.choose_layout') }}</p>
-                            <div class="lyp-templates-grid">
-                                <template x-for="(template, idx) in rowTemplates" :key="idx">
-                                    <button type="button" @click="rowAddAt(template, 0); showTemplates = false; $el.closest('.lyp-insert-zone').classList.remove('lyp-insert-zone--hover')" class="lyp-tpl-btn">
-                                        <template x-for="(span, ci) in template" :key="ci">
-                                            <div class="lyp-tpl-col" :style="'flex:' + span + ' ' + span + ' 0%'"></div></template></button></template></div></div></div>
+                {{-- Add Row --}}
+                <div class="lyp-add-row-bottom" x-data="{ showTemplates: false }">
+                    <button type="button" @click.stop="showTemplates = !showTemplates" class="lyp-add-row-btn">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+                        {{ __('layup::builder.add_row_label') }}
+                    </button>
 
-                    <template x-for="(row, rowIndex) in content.rows" :key="row.id">
-                        <div>
-                            {{-- Row drop indicator --}}
-                            <div
-                                    class="lyp-row-drop-indicator"
-                                    :class="{ 'lyp-row-drop-indicator--active': rowDrag.dropIndex === rowIndex }"
-                                    @dragover.prevent="if(rowDrag.active) rowDrag.dropIndex = rowIndex"
-                                    @drop.prevent="onRowDrop($event)"
-                            ></div>
-                            <div
-                                    class="lyp-row"
-                                    :class="{ 'lyp-row--dragging': rowDrag.active && rowDrag.rowId === row.id }"
-                                    :data-row-id="row.id"
-                                    @click.self="rowEdit(row.id)"
-                                    @dragover.prevent.stop="onRowDragOver($event, rowIndex)"
-                                    @drop.prevent="onRowDrop($event)"
-                            >
-                                <div class="lyp-row-header">
-                                    <div style="display:flex;align-items:center;gap:0.375rem">
-                                        <span
-                                                class="lyp-drag-handle"
-                                                draggable="true"
-                                                @dragstart.stop="onRowDragStart($event, row.id, rowIndex)"
-                                                @dragend="onRowDragEnd()"
-                                                title="{{ __('layup::builder.drag_to_reorder') }}"
-                                        >
-                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 9h16.5m-16.5 6.75h16.5"/></svg></span>
-                                        <span class="lyp-row-label" x-text="translations.row_label.replace(':number', rowIndex + 1)"></span></div>
-                                    <div class="lyp-actions group-hover:opacity-100">
-                                        <button
-                                                type="button"
-                                                @click.stop="columnAdd(row.id)" class="lyp-action-btn" title="{{ __('layup::builder.add_column') }}">
-                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg></button>
-                                        <button
-                                                type="button"
-                                                @click.stop="rowDuplicate(row.id)"
-                                                class="lyp-action-btn"
-                                                title="{{ __('layup::builder.duplicate_row') }}">
-                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 01-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 011.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 00-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 01-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 00-3.375-3.375h-1.5a1.125 1.125 0 01-1.125-1.125v-1.5a3.375 3.375 0 00-3.375-3.375H9.75"/></svg></button>
-                                        <button type="button" @click.stop="rowEdit(row.id)" class="lyp-action-btn" title="{{ __('layup::builder.row_settings') }}">
-                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg></button>
-                                        <button type="button"
-                                                @click.stop="rowDelete(row.id)"
-                                                class="lyp-action-btn lyp-action-btn--danger" title="{{ __('layup::builder.delete_row') }}">
-                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/></svg></button></div></div>
-
-                                {{-- Columns --}}
-                                <div class="lyp-columns" :style="'--lyp-col-gap:' + (row.settings.gap ? row.settings.gap.replace('gap-','').replace('0','0px').replace('2','0.5rem').replace('4','1rem').replace('6','1.5rem').replace('8','2rem').replace('12','3rem') : '1rem')">
-                                    <template x-for="(col, colIndex) in row.columns" :key="col.id">
-                                        <div style="display: contents;">
-                                            {{-- Resize handle before column (except first) --}}
-                                            <template x-if="colIndex > 0">
-                                                <div
-                                                        class="lyp-resize-handle"
-                                                        @mousedown.prevent="startColumnResize(row.id, colIndex, $event)"
-                                                        title="{{ __('layup::builder.drag_to_resize') }}"
-                                                >
-                                                    <div class="lyp-resize-handle-bar"></div></div></template>
-                                            <div
-                                                    class="lyp-col"
-                                                    :class="{ 'lyp-col--drop-target': drag.active && (drag.fromPicker || !(drag.sourceRowId === row.id && drag.sourceColId === col.id && col.widgets.length === 1)) }"
-                                                    :data-col-id="col.id"
-                                                    :style="'grid-column: span ' + getColSpan(col) + ' / span ' + getColSpan(col)"
-                                                    @click.self="columnEdit(row.id, col.id)"
-                                                    @dragover.prevent="onDragOverCol($event, row.id, col.id)"
-                                                    @dragleave="onDragLeaveCol($event)"
-                                                    @drop.prevent="onDropCol($event, row.id, col.id)"
-                                            >
-                                                <div class="lyp-col-header">
-                                                    <span class="lyp-col-label font-medium text-gray-950 dark:text-white truncate text-sm" x-text="'Col ' + (colIndex + 1) + ' · ' + getColSpan(col) + '/12'"></span>
-                                                    <div class="lyp-actions">
-                                                        <button
-                                                                @click.stop="columnMove(row.id, col.id, 'left')" :disabled="colIndex === 0" class="lyp-action-btn lyp-action-btn--sm" title="{{ __('layup::builder.move_left') }}">
-                                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5"/></svg></button>
-                                                        <button type="button" @click.stop="columnMove(row.id, col.id, 'right')" :disabled="colIndex === row.columns.length - 1" class="lyp-action-btn lyp-action-btn--sm" title="{{ __('layup::builder.move_right') }}">
-                                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg></button>
-                                                        <button type="button" @click.stop="columnEdit(row.id, col.id)" class="lyp-action-btn lyp-action-btn--sm" title="{{ __('layup::builder.column_settings') }}">
-                                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg></button>
-                                                        <button type="button" @click.stop="columnDelete(row.id, col.id)" class="lyp-action-btn lyp-action-btn--sm lyp-action-btn--danger" title="{{ __('layup::builder.delete_column') }}">
-                                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/></svg></button></div></div>
-
-                                                {{-- Widgets --}}
-                                                <div class="lyp-widgets">
-                                                    <template x-for="(widget, widgetIndex) in col.widgets" :key="widget.id">
-                                                        <div>
-                                                            <div
-                                                                    class="lyp-drop-indicator"
-                                                                    :class="{ 'lyp-drop-indicator--active': drag.dropTarget?.rowId === row.id && drag.dropTarget?.colId === col.id && drag.dropTarget?.position === widgetIndex }"
-                                                            ></div>
-                                                            <div
-                                                                    class="lyp-widget"
-                                                                    :class="{ 'lyp-widget--dragging': drag.active && drag.widgetId === widget.id, 'lyp-widget--selected': selectedWidgetId === widget.id }"
-                                                                    :data-widget-id="widget.id"
-                                                                    draggable="true"
-                                                                    @dragstart="onDragStart($event, row.id, col.id, widget.id, widgetIndex)"
-                                                                    @dragend="onDragEnd()"
-                                                                    @dragover.prevent.stop="onDragOverWidget($event, row.id, col.id, widgetIndex)"
-                                                                    @click.stop="selectedWidgetId = widget.id; widgetEdit(row.id, col.id, widget.id)"
-                                                            >
-                                                                <div class="lyp-widget-header">
-                                                                    <div style="display:flex;align-items:center;gap:0.375rem">
-                                                                        <span class="lyp-drag-handle" title="{{ __('layup::builder.drag_to_reorder') }}">
-                                                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 9h16.5m-16.5 6.75h16.5"/></svg></span>
-                                                                        <span class="lyp-widget-type" x-text="getWidgetLabel(widget.type)"></span></div>
-                                                                    <div class="lyp-actions">
-                                                                        <button type="button" @click.stop="widgetEdit(row.id, col.id, widget.id)" class="lyp-action-btn lyp-action-btn--sm" title="{{ __('layup::builder.edit') }}">
-                                                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487zm0 0L19.5 7.125"/></svg></button>
-                                                                        <button type="button" @click.stop="widgetDuplicate(row.id, col.id, widget.id)" class="lyp-action-btn lyp-action-btn--sm" title="{{ __('layup::builder.duplicate') }}">
-                                                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 01-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 011.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 00-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 01-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 00-3.375-3.375h-1.5a1.125 1.125 0 01-1.125-1.125v-1.5a3.375 3.375 0 00-3.375-3.375H9.75"/></svg></button>
-                                                                        <button type="button" @click.stop="widgetDelete(row.id, col.id, widget.id)" class="lyp-action-btn lyp-action-btn--sm lyp-action-btn--danger" title="{{ __('layup::builder.delete') }}">
-                                                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/></svg></button></div></div>
-                                                                <template x-if="supportsLivePreview(widget.type)">
-                                                                    <div
-                                                                            class="lyp-widget-preview lyp-widget-preview--live"
-                                                                            x-html="livePreviewHtml(widget)"
-                                                                    ></div></template>
-                                                                <template x-if="!supportsLivePreview(widget.type)">
-                                                                    <div
-                                                                            class="lyp-widget-preview"
-                                                                            :class="{ 'lyp-widget-preview--editable': isInlineEditable(widget.type) }"
-                                                                            x-text="getWidgetPreview(widget)"
-                                                                            @dblclick.stop="startInlineEdit(row.id, col.id, widget.id, widget.type, widget.data)"
-                                                                    ></div></template></div></div></template>
-
-                                                    <div
-                                                            class="lyp-drop-indicator"
-                                                            :class="{ 'lyp-drop-indicator--active': drag.dropTarget?.rowId === row.id && drag.dropTarget?.colId === col.id && drag.dropTarget?.position === col.widgets.length }"
-                                                    ></div></div>
-
-                                                {{-- Add Widget --}}
-                                                <button type="button" @click.stop="openPicker(row.id, col.id)" class="lyp-add-widget">
-                                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
-                                                    {{ __('layup::builder.add_widget') }}
-                                                </button></div></div></template></div></div>
-
-                            {{-- Insert zone after row --}}
-                            <div class="lyp-insert-zone" x-data="{ showTemplates: false }" @mouseenter="$el.classList.add('lyp-insert-zone--hover')" @mouseleave="if(!showTemplates) $el.classList.remove('lyp-insert-zone--hover')">
-                                <div class="lyp-insert-line">
-                                    <button type="button" @click.stop="showTemplates = !showTemplates" class="lyp-insert-btn" title="{{ __('layup::builder.add_row') }}">
-                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg></button></div>
-                                <div x-show="showTemplates" @click.away="showTemplates = false; $el.closest('.lyp-insert-zone').classList.remove('lyp-insert-zone--hover')" x-transition class="lyp-templates lyp-templates--inline">
-                                    <p>{{ __('layup::builder.choose_layout') }}</p>
-                                    <div class="lyp-templates-grid">
-                                        <template x-for="(template, idx) in rowTemplates" :key="idx">
-                                            <button type="button" @click="rowAddAt(template, rowIndex + 1); showTemplates = false; $el.closest('.lyp-insert-zone').classList.remove('lyp-insert-zone--hover')" class="lyp-tpl-btn">
-                                                <template x-for="(span, ci) in template" :key="ci">
-                                                    <div class="lyp-tpl-col" :style="'flex:' + span + ' ' + span + ' 0%'"></div></template></button></template></div></div></div></div></template>
-
-                    {{-- Drop indicator after last row --}}
-                    <div
-                            class="lyp-row-drop-indicator"
-                            :class="{ 'lyp-row-drop-indicator--active': rowDrag.dropIndex === content.rows.length }"
-                            @dragover.prevent="if(rowDrag.active) rowDrag.dropIndex = content.rows.length"
-                            @drop.prevent="onRowDrop($event)"
-                            style="min-height: 0.5rem"
-                    ></div>
-
-                    {{-- Add Row --}}
-                    <div class="lyp-add-row-bottom" x-data="{
-                            showTemplates: false,
-
-                         }">
-                        <button type="button" @click.stop="showTemplates = !showTemplates" class="lyp-add-row-btn">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
-                            {{ __('layup::builder.add_row_label') }}
-                        </button>
-
-                        <div x-show="showTemplates" @click.away="showTemplates = false" x-transition class="lyp-templates lyp-templates--bottom">
-                            <p>{{ __('layup::builder.choose_layout') }}</p>
-                            <div class="lyp-templates-grid">
-
-
-                                <template x-for="(template, idx) in rowTemplates" :key="idx">
-                                    <button type="button"
-                                            @click="rowAdd(template); showTemplates = false" class="lyp-tpl-btn">
-                                        <template x-for="(span, ci) in template" :key="ci">
-                                            <div class="lyp-tpl-col" :style="'flex:' + span + ' ' + span + ' 0%'"></div></template></button></template></div></div></div>
-
-                    {{-- Empty State --}}
-                    <template x-if="!content.rows || content.rows.length === 0">
-                        <div class="lyp-empty">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z"/></svg>
-                            <p>{!! __('layup::builder.empty_state') !!}</p></div></template></div></div></div>
+                    <div x-show="showTemplates" @click.away="showTemplates = false" x-transition class="lyp-templates lyp-templates--bottom">
+                        <p>{{ __('layup::builder.choose_layout') }}</p>
+                        <div class="lyp-templates-grid">
+                            <template x-for="(template, idx) in rowTemplates" :key="idx">
+                                <button type="button"
+                                        @click="rowAdd(template); showTemplates = false" class="lyp-tpl-btn">
+                                    <template x-for="(span, ci) in template" :key="ci">
+                                        <div class="lyp-tpl-col" :style="'flex:' + span + ' ' + span + ' 0%'"></div></template></button></template></div></div></div>
+            </div></div>
 
         {{-- Structure Panel --}}
         <div class="lyp-sidebar-right" x-show="rightPanelOpen" x-transition>
@@ -415,6 +252,7 @@
             leftPanelOpen: true,
             rightPanelOpen: true,
             selectedWidgetId: null,
+            canvasRenderTimer: null,
 
             // Live (server-rendered) widget previews, keyed by widget content.
             // Seeded from server-rendered HTML on load; refreshed only when a
@@ -513,8 +351,11 @@
             },
 
             // Structure panel: scroll the canvas to a node and select it.
+            // Row/column/widget elements only exist inside the WYSIWYG
+            // iframe now (see renderCanvas() below), not the light DOM.
             scrollToNode(selector) {
-                const el = this.$root.querySelector(selector);
+                const doc = this.$refs.canvasFrame?.contentDocument;
+                const el = doc?.querySelector(selector);
                 if (el) {
                     el.scrollIntoView({behavior: 'smooth', block: 'center'});
                 }
@@ -527,7 +368,182 @@
             },
             scrollToWidget(widgetId) {
                 this.selectedWidgetId = widgetId;
+                this.highlightSelectedWidgetInFrame();
                 this.scrollToNode('[data-widget-id="' + widgetId + '"]');
+            },
+
+            // Reflects selectedWidgetId as an outline inside the iframe
+            // immediately, without waiting for the next content-driven
+            // re-render (selecting a widget doesn't mutate content).
+            highlightSelectedWidgetInFrame() {
+                const doc = this.$refs.canvasFrame?.contentDocument;
+                if (!doc) return;
+                doc.querySelectorAll('.lyp-frame-widget.lyp-frame-selected').forEach((el) => el.classList.remove('lyp-frame-selected'));
+                if (this.selectedWidgetId) {
+                    const el = doc.querySelector('[data-widget-id="' + this.selectedWidgetId + '"]');
+                    if (el) el.classList.add('lyp-frame-selected');
+                }
+            },
+
+            // ─── WYSIWYG iframe canvas ─────────────────
+            // Re-renders the canvas from the current (possibly unsaved)
+            // content via a Livewire round trip, debounced so a burst of
+            // mutations (e.g. undo restoring a whole tree) only re-renders
+            // once. Hooked into pushHistory()/undo()/redo() below, which
+            // between them run after every content mutation in this file.
+            renderCanvas() {
+                clearTimeout(this.canvasRenderTimer);
+                this.canvasRenderTimer = setTimeout(() => {
+                    $wire.callSchemaComponentMethod(this.componentKey, 'renderCanvasFrame', {content: this.content})
+                        .then((html) => {
+                            const iframe = this.$refs.canvasFrame;
+                            if (iframe && typeof html === 'string') {
+                                iframe.srcdoc = html;
+                            }
+                        });
+                }, 80);
+            },
+
+            // The iframe is same-origin, so its contentDocument is fully
+            // reachable from here — no postMessage bridge needed. Every
+            // srcdoc replacement is a fresh document, so listeners are
+            // rebound on each load rather than diffed/removed.
+            onCanvasFrameLoad() {
+                const doc = this.$refs.canvasFrame?.contentDocument;
+                if (!doc) return;
+
+                // Deliberately not auto-resizing the iframe to its content's
+                // scrollHeight here — see the .lyp-canvas-frame CSS rule
+                // above for why that would be circular for vh-based widgets.
+                // The iframe keeps a fixed height and scrolls internally.
+
+                doc.addEventListener('click', (e) => this.onCanvasFrameClick(e));
+                doc.addEventListener('submit', (e) => e.preventDefault());
+                doc.addEventListener('dragstart', (e) => this.onCanvasFrameDragStart(e));
+                doc.addEventListener('dragend', (e) => this.onCanvasFrameDragEnd(e));
+                doc.addEventListener('dragover', (e) => this.onCanvasFrameDragOver(e));
+                doc.addEventListener('drop', (e) => this.onCanvasFrameDrop(e));
+
+                this.highlightSelectedWidgetInFrame();
+            },
+
+            onCanvasFrameClick(e) {
+                const actionEl = e.target.closest('[data-lyp-action]');
+
+                // Any click inside a widget's real rendered markup (its own
+                // links/buttons/forms included) selects it for editing
+                // instead of doing whatever it'd do on the live page.
+                if (!actionEl) {
+                    const widgetEl = e.target.closest('.lyp-frame-widget');
+                    if (widgetEl) {
+                        e.preventDefault();
+                        this.selectedWidgetId = widgetEl.dataset.widgetId;
+                        this.highlightSelectedWidgetInFrame();
+                        this.widgetEdit(widgetEl.dataset.rowId, widgetEl.dataset.colId, widgetEl.dataset.widgetId);
+                    }
+                    return;
+                }
+
+                e.preventDefault();
+                e.stopPropagation();
+
+                const action = actionEl.dataset.lypAction;
+                const widgetWrap = actionEl.closest('.lyp-frame-widget');
+                const colWrap = actionEl.closest('.lyp-frame-col');
+                const rowWrap = actionEl.closest('.lyp-frame-row');
+
+                const rowId = actionEl.dataset.rowId || widgetWrap?.dataset.rowId || colWrap?.dataset.rowId || rowWrap?.dataset.rowId;
+                const colId = actionEl.dataset.colId || widgetWrap?.dataset.colId || colWrap?.dataset.colId;
+                const widgetId = actionEl.dataset.widgetId || widgetWrap?.dataset.widgetId;
+
+                switch (action) {
+                    case 'row-add-column': this.columnAdd(rowId); break;
+                    case 'row-duplicate': this.rowDuplicate(rowId); break;
+                    case 'row-edit': this.rowEdit(rowId); break;
+                    case 'row-delete': this.rowDelete(rowId); break;
+                    case 'col-add-widget': this.openPicker(rowId, colId); break;
+                    case 'col-edit': this.columnEdit(rowId, colId); break;
+                    case 'col-delete': this.columnDelete(rowId, colId); break;
+                    case 'col-move-left': this.columnMove(rowId, colId, 'left'); break;
+                    case 'col-move-right': this.columnMove(rowId, colId, 'right'); break;
+                    case 'widget-edit':
+                        this.selectedWidgetId = widgetId;
+                        this.highlightSelectedWidgetInFrame();
+                        this.widgetEdit(rowId, colId, widgetId);
+                        break;
+                    case 'widget-duplicate': this.widgetDuplicate(rowId, colId, widgetId); break;
+                    case 'widget-delete': this.widgetDelete(rowId, colId, widgetId); break;
+                }
+            },
+
+            onCanvasFrameDragStart(e) {
+                const rowHandle = e.target.closest('[data-lyp-action="row-drag-handle"]');
+                if (rowHandle) {
+                    const doc = e.target.ownerDocument;
+                    const rowId = rowHandle.dataset.rowId;
+                    const rowIndex = Array.from(doc.querySelectorAll('.lyp-frame-row')).findIndex((el) => el.dataset.rowId === rowId);
+                    this.onRowDragStart(e, rowId, rowIndex);
+                    return;
+                }
+
+                const widgetEl = e.target.closest('.lyp-frame-widget');
+                if (widgetEl) {
+                    const doc = e.target.ownerDocument;
+                    const colEl = widgetEl.closest('.lyp-frame-col');
+                    const widgetIndex = colEl
+                        ? Array.from(colEl.querySelectorAll(':scope > .lyp-frame-widget')).indexOf(widgetEl)
+                        : 0;
+                    this.onDragStart(e, widgetEl.dataset.rowId, widgetEl.dataset.colId, widgetEl.dataset.widgetId, widgetIndex);
+                    widgetEl.classList.add('lyp-frame-dragging');
+                }
+            },
+
+            onCanvasFrameDragEnd(e) {
+                e.target.ownerDocument.querySelectorAll('.lyp-frame-dragging').forEach((el) => el.classList.remove('lyp-frame-dragging'));
+                if (this.rowDrag.active) {
+                    this.onRowDragEnd();
+                }
+                this.onDragEnd();
+            },
+
+            onCanvasFrameDragOver(e) {
+                const rowDropEl = e.target.closest('[data-lyp-action="row-drop"]');
+                if (rowDropEl && this.rowDrag.active) {
+                    e.preventDefault();
+                    this.rowDrag.dropIndex = parseInt(rowDropEl.dataset.dropIndex, 10);
+                    return;
+                }
+
+                const widgetDropEl = e.target.closest('[data-lyp-action="widget-drop"]');
+                if (widgetDropEl && this.drag.active) {
+                    e.preventDefault();
+                    this.drag.dropTarget = {
+                        rowId: widgetDropEl.dataset.rowId,
+                        colId: widgetDropEl.dataset.colId,
+                        position: parseInt(widgetDropEl.dataset.dropIndex, 10),
+                    };
+                    return;
+                }
+
+                const colEl = e.target.closest('.lyp-frame-col');
+                if (colEl && this.drag.active) {
+                    e.preventDefault();
+                    this.onDragOverCol(e, colEl.dataset.rowId, colEl.dataset.colId);
+                }
+            },
+
+            onCanvasFrameDrop(e) {
+                e.preventDefault();
+
+                if (this.rowDrag.active) {
+                    this.onRowDrop(e);
+                    return;
+                }
+
+                const colEl = e.target.closest('.lyp-frame-col');
+                if (colEl && this.drag.active) {
+                    this.onDropCol(e, colEl.dataset.rowId, colEl.dataset.colId);
+                }
             },
 
             // Undo/Redo
@@ -548,6 +564,7 @@
                 this.historyIndex = 0;
 
                 this.seedLivePreviews();
+                this.renderCanvas();
 
                 // Watch for Livewire saves
                 Livewire.hook('request', ({respond}) => {
@@ -688,6 +705,11 @@
                 } else {
                     this.historyIndex++;
                 }
+                // Every content mutation in this file ends in pushHistory()
+                // (undo/redo are the only exceptions — they call renderCanvas()
+                // directly below), so this is the single choke point that
+                // keeps the WYSIWYG iframe canvas in sync with `content`.
+                this.renderCanvas();
             },
             /**
              * Row Methods
@@ -932,6 +954,7 @@
                 const state = JSON.parse(JSON.stringify(this.history[this.historyIndex]));
                 this.content = state;
                 $wire.callSchemaComponentMethod(this.componentKey, 'restoreContent', {state: state});
+                this.renderCanvas();
             },
 
             redo() {
@@ -940,6 +963,7 @@
                 const state = JSON.parse(JSON.stringify(this.history[this.historyIndex]));
                 this.content = state;
                 $wire.callSchemaComponentMethod(this.componentKey, 'restoreContent', {state: state});
+                this.renderCanvas();
             },
 
             onKeyDown(e) {
