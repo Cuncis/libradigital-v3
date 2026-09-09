@@ -248,6 +248,23 @@ Every phase since Phase 2 shipped with its own tests as it was built, rather tha
 
 Full suite: 89/89 passing (up from 77 at the end of Phase 10 — 12 new tests, all closing real gaps, none redundant). Ran via `php artisan test --compact` throughout, per project convention.
 
+## Ad-hoc: Elementor-style 3-panel content builder
+
+The user asked for the invitation/theme content editor (Layup's `LayupBuilder` field) to look and behave like WordPress Elementor: widget picker on the left, canvas in the center, page structure on the right, drag-and-drop.
+
+**Investigated Layup's actual builder first rather than guessing.** Its Alpine component (entirely inline inside `layup-builder.blade.php`'s `@script` block — no separate JS file involved) already had full drag-and-drop plumbing for placing a widget from a picker into a column (`onPickerDragStart`, `drag.fromPicker`, `onDropCol`) — it was just wired to a modal (`modal-widget-picker.blade.php`) instead of a persistent sidebar, and there was no structure/outline panel at all. This meant the 3-panel layout was mostly a restructuring job, not new drag-and-drop logic from scratch.
+
+**Implementation**, entirely in the already-published override `resources/views/vendor/layup/forms/components/layup-builder.blade.php` (never touch `vendor/crumbls/layup/...` directly — it's composer-managed):
+- Left panel: the same search/category/recently-used widget list markup as the modal, made permanently visible, reusing the existing `onPickerDragStart` drag source. Click-to-add also works via a new `quickAddWidget()` method (creates a full-width row first if the canvas is empty, else appends to the last column of the last row) — parity with drag for anyone who doesn't want to drag.
+- Right panel: new — a live tree of rows → columns → widgets built from the same `content` state, click-to-scroll-to (added `data-row-id` / `data-col-id` / `data-widget-id` attributes to the corresponding canvas elements) with two-way select highlighting.
+- Both panels are toggleable from the toolbar (new icon buttons) so the canvas can reclaim full width.
+- The existing per-column "+ Add Widget" modal was left intact as a secondary path — not removed, since it still works and costs nothing to keep.
+- All new CSS lives in a `<style>` block inside the same override file (Layup registers `layup.css` directly from the vendor path via `FilamentAsset::register`, which isn't publish-overridable, so extending in-place was the only option without forking the CSS asset registration itself).
+
+**Verified with tests, not tinker** (`tests/Feature/LayupBuilderElementorPanelsTest.php`): first pass asserted panel markers were merely *present*, which missed a real ordering bug — the new `<style>` block's CSS selectors (`.lyp-sidebar-right`) matched via `strpos` before the actual right-panel `<div>`, so an ordering assertion using class-name text gave a false pass. Fixed by asserting on `x-show="leftPanelOpen"` / `x-show="rightPanelOpen"` instead (unique to the actual elements), which then correctly caught that ordering was in fact right. Full suite: 106/106 passing.
+
+**Known limitations, not yet built**: dragging directly onto empty canvas space to auto-create a row (currently you place a row via the existing "+ Add Row" template picker, then drag/click widgets into it); reordering rows/columns from the structure panel itself (currently click-to-scroll-and-select only, no drag-in-tree).
+
 ## Phase 12 — Pre-release hardening
 
 - [ ] Confirm MySQL is fully configured for production (connection, backups — see below) rather than the Laravel skeleton's SQLite default.

@@ -1,3 +1,54 @@
+@once
+    <style>
+        .lyp-body { display: flex; align-items: flex-start; }
+        .lyp-sidebar-left, .lyp-sidebar-right {
+            flex: 0 0 260px;
+            width: 260px;
+            max-height: calc(100vh - 10rem);
+            overflow-y: auto;
+            position: sticky;
+            top: 0;
+            background: var(--color-white);
+        }
+        .dark .lyp-sidebar-left, .dark .lyp-sidebar-right { background: var(--gray-900); }
+        .lyp-sidebar-left { border-right: 1px solid var(--gray-200); }
+        .dark .lyp-sidebar-left { border-color: var(--gray-700); }
+        .lyp-sidebar-right { border-left: 1px solid var(--gray-200); }
+        .dark .lyp-sidebar-right { border-color: var(--gray-700); }
+        .lyp-sidebar-header { padding: 0.75rem; border-bottom: 1px solid var(--gray-200); }
+        .dark .lyp-sidebar-header { border-color: var(--gray-700); }
+        .lyp-sidebar-title { font-size: 0.75rem; font-weight: 600; color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.05em; }
+        .lyp-sidebar-body { padding: 0.75rem; }
+        .lyp-sidebar-left .lyp-picker-grid { grid-template-columns: repeat(2, 1fr); }
+        .lyp-body > .lyp-canvas { flex: 1; min-width: 0; }
+
+        .lyp-structure-body { padding: 0.5rem; font-size: 0.75rem; }
+        .lyp-structure-row { margin-bottom: 0.25rem; }
+        .lyp-structure-col { margin-left: 0.75rem; }
+        .lyp-structure-node {
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.25rem;
+            cursor: pointer;
+            color: var(--gray-600);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .dark .lyp-structure-node { color: var(--gray-400); }
+        .lyp-structure-node:hover { background: var(--gray-100); }
+        .dark .lyp-structure-node:hover { background: var(--gray-800); }
+        .lyp-structure-node--row { font-weight: 600; color: var(--gray-950); }
+        .dark .lyp-structure-node--row { color: var(--color-white); }
+        .lyp-structure-node--col { margin-left: 0.5rem; color: var(--gray-500); }
+        .lyp-structure-node--widget { margin-left: 1.25rem; }
+        .lyp-structure-node--selected {
+            background: color-mix(in oklab, var(--primary-500) 10%, transparent) !important;
+            color: var(--primary-600) !important;
+        }
+        .lyp-widget--selected { box-shadow: 0 0 0 2px var(--primary-500); border-radius: 0.375rem; }
+    </style>
+@endonce
+
 <x-dynamic-component
         :component="$getFieldWrapperView()"
         :field="$field"
@@ -53,7 +104,54 @@
 
                 {{-- Ruler Toggle --}}
                 <button type="button" @click="showRuler = !showRuler" class="lyp-toolbar-icon" :title="showRuler ? '{{ __('layup::builder.hide_ruler') }}' : '{{ __('layup::builder.show_ruler') }}'" :style="showRuler ? 'color: var(--primary-500)' : ''">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25H12"/></svg></button></div></div>
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25H12"/></svg></button>
+
+                {{-- Panel Toggles --}}
+                <button type="button" @click="leftPanelOpen = !leftPanelOpen" class="lyp-toolbar-icon" title="Toggle widgets panel" :style="leftPanelOpen ? 'color: var(--primary-500)' : ''">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z"/></svg></button>
+                <button type="button" @click="rightPanelOpen = !rightPanelOpen" class="lyp-toolbar-icon" title="Toggle structure panel" :style="rightPanelOpen ? 'color: var(--primary-500)' : ''">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 5.25h16.5M3.75 9.75h16.5M3.75 14.25h16.5M3.75 18.75h16.5"/></svg></button></div></div>
+
+        <div class="lyp-body">
+        {{-- Widgets Panel --}}
+        <div class="lyp-sidebar-left" x-show="leftPanelOpen" x-transition>
+            <div class="lyp-sidebar-header">
+                <input type="text" class="lyp-picker-search" placeholder="{{ __('layup::builder.search_widgets') }}" x-model="picker.search" />
+            </div>
+            <div class="lyp-sidebar-body">
+                <template x-if="!picker.search && getRecentWidgets().length > 0">
+                    <div>
+                        <div class="lyp-picker-cat-label">{{ __('layup::builder.recently_used') }}</div>
+                        <div class="lyp-picker-grid">
+                            <template x-for="w in getRecentWidgets()" :key="'palette-recent-' + w.type">
+                                <div
+                                        class="lyp-picker-item"
+                                        draggable="true"
+                                        @dragstart="onPickerDragStart($event, w.type)"
+                                        @dragend="onPickerDragEnd()"
+                                        @click="quickAddWidget(w.type)"
+                                        :title="w.label"
+                                >
+                                    <span x-html="getIconSvg(w.icon)" class="lyp-picker-item-icon"></span>
+                                    <span class="lyp-picker-item-label" x-text="w.label"></span></div></template></div></div></template>
+
+                <template x-for="cat in getFilteredWidgetCategories()" :key="'palette-cat-' + cat.name">
+                    <div>
+                        <div class="lyp-picker-cat-label" x-text="cat.name"></div>
+                        <div class="lyp-picker-grid">
+                            <template x-for="w in cat.widgets" :key="'palette-' + w.type">
+                                <div
+                                        class="lyp-picker-item"
+                                        draggable="true"
+                                        @dragstart="onPickerDragStart($event, w.type)"
+                                        @dragend="onPickerDragEnd()"
+                                        @click="quickAddWidget(w.type)"
+                                        :title="w.label"
+                                >
+                                    <span x-html="getIconSvg(w.icon)" class="lyp-picker-item-icon"></span>
+                                    <span class="lyp-picker-item-label" x-text="w.label"></span></div></template></div></div></template>
+                <template x-if="getFilteredWidgetCategories().length === 0">
+                    <div class="lyp-picker-empty">{{ __('layup::builder.no_widgets_match') }}</div></template></div></div>
 
         {{-- Canvas --}}
         <div class="lyp-canvas">
@@ -92,6 +190,7 @@
                             <div
                                     class="lyp-row"
                                     :class="{ 'lyp-row--dragging': rowDrag.active && rowDrag.rowId === row.id }"
+                                    :data-row-id="row.id"
                                     @click.self="rowEdit(row.id)"
                                     @dragover.prevent.stop="onRowDragOver($event, rowIndex)"
                                     @drop.prevent="onRowDrop($event)"
@@ -140,6 +239,7 @@
                                             <div
                                                     class="lyp-col"
                                                     :class="{ 'lyp-col--drop-target': drag.active && (drag.fromPicker || !(drag.sourceRowId === row.id && drag.sourceColId === col.id && col.widgets.length === 1)) }"
+                                                    :data-col-id="col.id"
                                                     :style="'grid-column: span ' + getColSpan(col) + ' / span ' + getColSpan(col)"
                                                     @click.self="columnEdit(row.id, col.id)"
                                                     @dragover.prevent="onDragOverCol($event, row.id, col.id)"
@@ -169,12 +269,13 @@
                                                             ></div>
                                                             <div
                                                                     class="lyp-widget"
-                                                                    :class="{ 'lyp-widget--dragging': drag.active && drag.widgetId === widget.id }"
+                                                                    :class="{ 'lyp-widget--dragging': drag.active && drag.widgetId === widget.id, 'lyp-widget--selected': selectedWidgetId === widget.id }"
+                                                                    :data-widget-id="widget.id"
                                                                     draggable="true"
                                                                     @dragstart="onDragStart($event, row.id, col.id, widget.id, widgetIndex)"
                                                                     @dragend="onDragEnd()"
                                                                     @dragover.prevent.stop="onDragOverWidget($event, row.id, col.id, widgetIndex)"
-                                                                    @click.stop="widgetEdit(row.id, col.id, widget.id)"
+                                                                    @click.stop="selectedWidgetId = widget.id; widgetEdit(row.id, col.id, widget.id)"
                                                             >
                                                                 <div class="lyp-widget-header">
                                                                     <div style="display:flex;align-items:center;gap:0.375rem">
@@ -262,6 +363,28 @@
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z"/></svg>
                             <p>{!! __('layup::builder.empty_state') !!}</p></div></template></div></div></div>
 
+        {{-- Structure Panel --}}
+        <div class="lyp-sidebar-right" x-show="rightPanelOpen" x-transition>
+            <div class="lyp-sidebar-header"><span class="lyp-sidebar-title">Structure</span></div>
+            <div class="lyp-structure-body">
+                <template x-if="!content.rows || content.rows.length === 0">
+                    <div class="lyp-picker-empty">No rows yet.</div></template>
+                <template x-for="(row, rowIndex) in content.rows" :key="'struct-row-' + row.id">
+                    <div class="lyp-structure-row">
+                        <div class="lyp-structure-node lyp-structure-node--row" @click="scrollToRow(row.id)" x-text="'Row ' + (rowIndex + 1)"></div>
+                        <template x-for="(col, colIndex) in row.columns" :key="'struct-col-' + col.id">
+                            <div class="lyp-structure-col">
+                                <div class="lyp-structure-node lyp-structure-node--col" @click="scrollToCol(row.id, col.id)" x-text="'Col ' + (colIndex + 1)"></div>
+                                <template x-for="widget in col.widgets" :key="'struct-w-' + widget.id">
+                                    <div
+                                            class="lyp-structure-node lyp-structure-node--widget"
+                                            :class="{ 'lyp-structure-node--selected': selectedWidgetId === widget.id }"
+                                            @click="scrollToWidget(widget.id)"
+                                            x-text="getWidgetLabel(widget.type)"
+                                    ></div></template></div></template></div></template></div>
+        </div>
+        </div>
+
         {{-- Action mount points (hidden — triggered via JS $wire.mountAction) --}}
         <div style="display:none !important; position:absolute; overflow:hidden; width:0; height:0;">
             {{ $getAction('rowDelete') }}
@@ -289,6 +412,9 @@
             translations: config.translations,
             showRuler: true,
             saving: false,
+            leftPanelOpen: true,
+            rightPanelOpen: true,
+            selectedWidgetId: null,
 
             // Live (server-rendered) widget previews, keyed by widget content.
             // Seeded from server-rendered HTML on load; refreshed only when a
@@ -362,6 +488,46 @@
                     ...cat,
                     widgets: cat.widgets.filter(w => w.label.toLowerCase().includes(q) || w.type.toLowerCase().includes(q))
                 })).filter(cat => cat.widgets.length > 0);
+            },
+
+            // Elementor-style widgets panel: clicking a widget (as an
+            // alternative to dragging it) appends it to the last column of
+            // the last row, creating a full-width row first if the canvas
+            // is empty.
+            quickAddWidget(type) {
+                this.trackRecentWidget(type);
+                const addToLast = () => {
+                    const rows = this.content.rows || [];
+                    const lastRow = rows[rows.length - 1];
+                    if (!lastRow) return;
+                    const cols = lastRow.columns || [];
+                    const lastCol = cols[cols.length - 1];
+                    if (!lastCol) return;
+                    this.widgetAdd(lastRow.id, lastCol.id, type);
+                };
+                if (!this.content.rows || this.content.rows.length === 0) {
+                    this.rowAddAt([12], 0).then(addToLast);
+                } else {
+                    addToLast();
+                }
+            },
+
+            // Structure panel: scroll the canvas to a node and select it.
+            scrollToNode(selector) {
+                const el = this.$root.querySelector(selector);
+                if (el) {
+                    el.scrollIntoView({behavior: 'smooth', block: 'center'});
+                }
+            },
+            scrollToRow(rowId) {
+                this.scrollToNode('[data-row-id="' + rowId + '"]');
+            },
+            scrollToCol(rowId, colId) {
+                this.scrollToNode('[data-col-id="' + colId + '"]');
+            },
+            scrollToWidget(widgetId) {
+                this.selectedWidgetId = widgetId;
+                this.scrollToNode('[data-widget-id="' + widgetId + '"]');
             },
 
             // Undo/Redo
@@ -571,7 +737,7 @@
                     position = 0;
                 }
 
-                $wire.callSchemaComponentMethod(this.componentKey, 'rowAdd', {columns: schema, position: position})
+                return $wire.callSchemaComponentMethod(this.componentKey, 'rowAdd', {columns: schema, position: position})
                     .then(function (response) {
 
                         if (typeof response != 'object' || !response) {

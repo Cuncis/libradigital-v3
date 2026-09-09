@@ -19,8 +19,13 @@ class InvitationForm
     public static function configure(Schema $schema): Schema
     {
         return $schema->components([
+            LayupBuilder::make('content')
+                ->columnSpanFull(),
+
             Section::make('Details')
                 ->columns(2)
+                ->collapsible()
+                ->collapsed()
                 ->schema([
                     Select::make('user_id')
                         ->label('Owner')
@@ -82,9 +87,6 @@ class InvitationForm
                         ->helperText('Set automatically when built from a custom request.')
                         ->columnSpanFull(),
                 ]),
-
-            LayupBuilder::make('content')
-                ->columnSpanFull(),
         ]);
     }
 }

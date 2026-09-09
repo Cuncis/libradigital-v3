@@ -17,8 +17,13 @@ class InvitationForm
     public static function configure(Schema $schema): Schema
     {
         return $schema->components([
+            LayupBuilder::make('content')
+                ->columnSpanFull(),
+
             Section::make('Details')
                 ->columns(2)
+                ->collapsible()
+                ->collapsed()
                 ->schema([
                     Select::make('theme_id')
                         ->label('Start from a theme (optional)')
@@ -68,9 +73,6 @@ class InvitationForm
                         ->label('Publish at')
                         ->helperText('Leave blank to publish immediately when status is Published.'),
                 ]),
-
-            LayupBuilder::make('content')
-                ->columnSpanFull(),
         ]);
     }
 }
