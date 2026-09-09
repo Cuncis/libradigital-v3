@@ -16,6 +16,12 @@ class EditInvitation extends EditRecord
 {
     protected static string $resource = InvitationResource::class;
 
+    // A full-screen takeover — no sidebar, no topbar — the same way
+    // Elementor's own editor replaces wp-admin's chrome entirely rather
+    // than living inside it. See the layout file's own docblock for how
+    // this stays lightweight (it only removes chrome, adds nothing).
+    protected static string $layout = 'filament.layouts.full-screen-editor';
+
     public function getMaxContentWidth(): Width|string|null
     {
         return Width::Full;

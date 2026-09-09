@@ -6,7 +6,10 @@ use Crumbls\Layup\Forms\Components\LayupBuilder as BaseLayupBuilder;
 use Crumbls\Layup\Support\Concerns\RegistersWidgets;
 use Crumbls\Layup\Support\PageLayout;
 use Crumbls\Layup\Support\WidgetRegistry;
+use Filament\Actions\Action;
 use Filament\Support\Components\Attributes\ExposedLivewireMethod;
+use Filament\Support\Enums\SlideOverPosition;
+use Filament\Support\Enums\Width;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Contracts\View\View;
 use Livewire\Attributes\Renderless;
@@ -29,6 +32,37 @@ class LayupBuilder extends BaseLayupBuilder
     // public-facing AbstractController — it registers for itself too;
     // registration is idempotent (checks $registry->has() first).
     use RegistersWidgets;
+
+    /**
+     * Elementor opens a section/column/widget's settings in the same left
+     * panel the widget library normally occupies (sliding over it), rather
+     * than a right-hand drawer — these three overrides are the entire
+     * difference: same actions, same forms, same everything Layup already
+     * built, just anchored to the other edge. registerActions() (in the
+     * base field's setUp()) calls $this->rowEditAction() etc. through late
+     * static binding, so overriding them here is picked up automatically
+     * with no other wiring.
+     */
+    public function rowEditAction(): Action
+    {
+        return parent::rowEditAction()
+            ->slideOverPosition(SlideOverPosition::Start)
+            ->modalWidth(Width::Small);
+    }
+
+    public function columnEditAction(): Action
+    {
+        return parent::columnEditAction()
+            ->slideOverPosition(SlideOverPosition::Start)
+            ->modalWidth(Width::Small);
+    }
+
+    public function widgetEditAction(): Action
+    {
+        return parent::widgetEditAction()
+            ->slideOverPosition(SlideOverPosition::Start)
+            ->modalWidth(Width::Small);
+    }
 
     protected function renderLivePreviewHtml(WidgetRegistry $registry, string $type, array $data): string
     {

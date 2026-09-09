@@ -69,6 +69,44 @@ class InvitationResourceTest extends TestCase
         $response->assertSee('wire:click="save"', false);
     }
 
+    /**
+     * The editor is a full-screen takeover — no sidebar, no topbar — the
+     * same way Elementor's own editor replaces wp-admin's chrome entirely
+     * rather than living inside it (EditInvitation::$layout, pointed at
+     * resources/views/filament/layouts/full-screen-editor.blade.php).
+     * Confirmed against the *list* page, which is unaffected and still has
+     * the normal panel chrome — proves this is really about the edit
+     * page's own layout override, not something broken/missing globally
+     * (e.g. an empty navigation array would make both pages fail the same
+     * way and this test wouldn't catch it).
+     */
+    public function test_the_edit_page_is_a_full_screen_takeover_without_the_sidebar(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $invitation = Invitation::factory()->create();
+
+        // id="fi-main-sidebar" / class="fi-topbar-ctn" are the sidebar and
+        // topbar Livewire components' own wrapper markup — not a resource
+        // label like "Users", which (confirmed while writing this test)
+        // Filament's global search embeds into a JS payload loaded on
+        // every page regardless of whether the sidebar itself renders, so
+        // it isn't reliable evidence either way.
+        $listResponse = $this->actingAs($admin)->get('/admin/invitations');
+        $listResponse->assertOk();
+        $listResponse->assertSee('id="fi-main-sidebar"', false);
+        $listResponse->assertSee('class="fi-topbar-ctn"', false);
+
+        $editResponse = $this->actingAs($admin)->get("/admin/invitations/{$invitation->id}/edit");
+        $editResponse->assertOk();
+        $editResponse->assertDontSee('id="fi-main-sidebar"', false);
+        $editResponse->assertDontSee('class="fi-topbar-ctn"', false);
+
+        // The page's own header (breadcrumbs + Preview/Save/Delete
+        // actions) is untouched — only the surrounding chrome is gone.
+        $editResponse->assertSee('Preview');
+        $editResponse->assertSee('Save changes');
+    }
+
     public function test_admin_sees_invitations_from_every_owner(): void
     {
         $admin = User::factory()->create(['role' => UserRole::Admin]);

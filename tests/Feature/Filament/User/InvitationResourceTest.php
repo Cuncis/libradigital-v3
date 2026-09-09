@@ -158,4 +158,33 @@ class InvitationResourceTest extends TestCase
         $response->assertOk();
         $response->assertSee('wire:click="save"', false);
     }
+
+    /**
+     * The editor is a full-screen takeover — no sidebar, no topbar — the
+     * same way Elementor's own editor replaces wp-admin's chrome entirely
+     * rather than living inside it (EditInvitation::$layout, pointed at
+     * resources/views/filament/layouts/full-screen-editor.blade.php).
+     * id="fi-main-sidebar" / class="fi-topbar-ctn" are those Livewire
+     * components' own wrapper markup — not a resource label, since
+     * Filament's global search embeds resource names into a JS payload
+     * loaded on every page regardless of whether the sidebar renders.
+     */
+    public function test_the_edit_page_is_a_full_screen_takeover_without_the_sidebar(): void
+    {
+        $customer = $this->subscribedCustomer();
+        $invitation = Invitation::factory()->for($customer)->create();
+
+        $listResponse = $this->actingAs($customer)->get('/user/invitations');
+        $listResponse->assertOk();
+        $listResponse->assertSee('id="fi-main-sidebar"', false);
+        $listResponse->assertSee('class="fi-topbar-ctn"', false);
+
+        $editResponse = $this->actingAs($customer)->get("/user/invitations/{$invitation->id}/edit");
+        $editResponse->assertOk();
+        $editResponse->assertDontSee('id="fi-main-sidebar"', false);
+        $editResponse->assertDontSee('class="fi-topbar-ctn"', false);
+
+        $editResponse->assertSee('Preview');
+        $editResponse->assertSee('Save changes');
+    }
 }
