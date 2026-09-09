@@ -1,6 +1,6 @@
 @php
     $hasHover = !empty($data['hover_bg_color']) || !empty($data['hover_text_color']);
-    $baseStyle = \Crumbls\Layup\View\BaseView::buildInlineStyles($data);
+    $baseStyle = \App\Layup\Support\StyleHelper::buildInlineStyles($data);
     if (!empty($data['bg_color'])) $baseStyle .= " background-color: {$data['bg_color']};";
     if (!empty($data['text_color_override'])) $baseStyle .= " color: {$data['text_color_override']};";
     $hoverStyle = $baseStyle;

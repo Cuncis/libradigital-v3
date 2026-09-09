@@ -7,7 +7,7 @@
 @endphp
 <div @if(!empty($data['id']))id="{{ $data['id'] }}"@endif
      class="flex justify-center {{ $vis }} {{ $data['class'] ?? '' }}"
-     style="padding: {{ $spacing }} 0; {{ \Crumbls\Layup\View\BaseView::buildInlineStyles($data) }}"
+     style="padding: {{ $spacing }} 0; {{ \App\Layup\Support\StyleHelper::buildInlineStyles($data) }}"
      {!! \Crumbls\Layup\View\BaseView::animationAttributes($data) !!}
 >
     @switch($style)

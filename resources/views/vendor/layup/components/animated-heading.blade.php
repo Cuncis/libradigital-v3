@@ -12,6 +12,6 @@
 @endphp
 <{{ $tag }} @if(!empty($data['id']))id="{{ $data['id'] }}"@endif
      class="font-bold {{ $vis }} {{ $data['class'] ?? '' }}"
-     style="{{ \Crumbls\Layup\View\BaseView::buildInlineStyles($data) }}"
+     style="{{ \App\Layup\Support\StyleHelper::buildInlineStyles($data) }}"
      {!! \Crumbls\Layup\View\BaseView::animationAttributes($data) !!}
 >{{ $data['before_text'] ?? '' }} <span style="{{ $decoration }}">{{ $data['animated_text'] ?? '' }}</span> {{ $data['after_text'] ?? '' }}</{{ $tag }}>

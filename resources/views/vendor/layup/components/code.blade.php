@@ -1,7 +1,7 @@
 @php
     $vis = \Crumbls\Layup\View\BaseView::visibilityClasses($data['hide_on'] ?? []);
 @endphp
-<div @if(!empty($data['id']))id="{{ $data['id'] }}"@endif class="rounded-lg overflow-hidden {{ $vis }} {{ $data['class'] ?? '' }}" style="{{ \Crumbls\Layup\View\BaseView::buildInlineStyles($data) }}" {!! \Crumbls\Layup\View\BaseView::animationAttributes($data) !!}>
+<div @if(!empty($data['id']))id="{{ $data['id'] }}"@endif class="rounded-lg overflow-hidden {{ $vis }} {{ $data['class'] ?? '' }}" style="{{ \App\Layup\Support\StyleHelper::buildInlineStyles($data) }}" {!! \Crumbls\Layup\View\BaseView::animationAttributes($data) !!}>
     @if(!empty($data['filename']))
         <div class="bg-gray-800 dark:bg-gray-800 text-gray-300 dark:text-gray-300 text-xs px-4 py-2 font-mono">{{ $data['filename'] }}</div>
     @endif

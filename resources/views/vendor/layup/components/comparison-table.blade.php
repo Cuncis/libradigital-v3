@@ -4,7 +4,7 @@
 @endphp
 <div @if(!empty($data['id']))id="{{ $data['id'] }}"@endif
      class="overflow-x-auto {{ $vis }} {{ $data['class'] ?? '' }}"
-     style="{{ \Crumbls\Layup\View\BaseView::buildInlineStyles($data) }}"
+     style="{{ \App\Layup\Support\StyleHelper::buildInlineStyles($data) }}"
      {!! \Crumbls\Layup\View\BaseView::animationAttributes($data) !!}
 >
     <table class="w-full text-sm border-collapse">

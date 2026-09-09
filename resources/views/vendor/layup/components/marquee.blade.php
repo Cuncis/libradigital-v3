@@ -6,7 +6,7 @@
 @endphp
 <div @if(!empty($data['id']))id="{{ $data['id'] }}"@endif
      class="overflow-hidden whitespace-nowrap {{ $vis }} {{ $data['class'] ?? '' }}"
-     style="{{ \Crumbls\Layup\View\BaseView::buildInlineStyles($data) }}"
+     style="{{ \App\Layup\Support\StyleHelper::buildInlineStyles($data) }}"
      {!! \Crumbls\Layup\View\BaseView::animationAttributes($data) !!}
 >
     <div class="inline-block" style="animation: layup-marquee {{ $speed }}s linear infinite {{ $direction }}; @if($pause) &:hover { animation-play-state: paused } @endif">

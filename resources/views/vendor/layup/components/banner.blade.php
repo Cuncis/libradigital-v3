@@ -6,7 +6,7 @@
 @endphp
 <div @if(!empty($data['id']))id="{{ $data['id'] }}"@endif
      class="relative flex items-center justify-center text-center px-4 py-6 md:px-8 md:py-12 {{ $vis }} {{ $data['class'] ?? '' }}"
-     style="background-color: {{ $bg }}; color: {{ $tc }}; min-height: {{ $height }}; {{ \Crumbls\Layup\View\BaseView::buildInlineStyles($data) }}"
+     style="background-color: {{ $bg }}; color: {{ $tc }}; min-height: {{ $height }}; {{ \App\Layup\Support\StyleHelper::buildInlineStyles($data) }}"
      {!! \Crumbls\Layup\View\BaseView::animationAttributes($data) !!}
 >
     @if(!empty($data['bg_image']))

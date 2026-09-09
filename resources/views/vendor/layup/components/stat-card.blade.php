@@ -16,7 +16,7 @@
 @endphp
 <div @if(!empty($data['id']))id="{{ $data['id'] }}"@endif
      class="border dark:border-gray-700 rounded-xl p-4 md:p-6 {{ $vis }} {{ $data['class'] ?? '' }}"
-     style="{{ \Crumbls\Layup\View\BaseView::buildInlineStyles($data) }} border-top: 3px solid {{ $color }}"
+     style="{{ \App\Layup\Support\StyleHelper::buildInlineStyles($data) }} border-top: 3px solid {{ $color }}"
      {!! \Crumbls\Layup\View\BaseView::animationAttributes($data) !!}
 >
     <div class="text-sm text-gray-500 dark:text-gray-400 mb-1">{{ $data['label'] ?? '' }}</div>

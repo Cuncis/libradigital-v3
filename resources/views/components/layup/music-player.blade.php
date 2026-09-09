@@ -1,7 +1,9 @@
 @php
     $vis = \Crumbls\Layup\View\BaseView::visibilityClasses($data['hide_on'] ?? []);
+    // audio_file is a Media Library record id (see MusicPlayerWidget), not
+    // a storage path.
     $audioUrl = !empty($data['audio_file'])
-        ? \Illuminate\Support\Facades\Storage::disk(config('layup.uploads.disk', 'public'))->url($data['audio_file'])
+        ? \App\Models\Media::query()->find($data['audio_file'])?->url
         : null;
 @endphp
 @if ($audioUrl)

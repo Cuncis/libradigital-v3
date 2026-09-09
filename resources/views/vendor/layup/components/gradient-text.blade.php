@@ -9,6 +9,6 @@
 @endphp
 <{{ $tag }} @if(!empty($data['id']))id="{{ $data['id'] }}"@endif
      class="font-bold {{ $vis }} {{ $data['class'] ?? '' }}"
-     style="background: {{ $gradient }}; -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; {{ \Crumbls\Layup\View\BaseView::buildInlineStyles($data) }}"
+     style="background: {{ $gradient }}; -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; {{ \App\Layup\Support\StyleHelper::buildInlineStyles($data) }}"
      {!! \Crumbls\Layup\View\BaseView::animationAttributes($data) !!}
 >{{ $data['text'] ?? '' }}</{{ $tag }}>

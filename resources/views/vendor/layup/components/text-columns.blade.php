@@ -12,7 +12,7 @@
 <div id="{{ $tcId }}"
      @if(!empty($data['id'])) data-block-id="{{ $data['id'] }}"@endif
      class="prose max-w-none {{ $vis }} {{ $data['class'] ?? '' }}"
-     style="{{ \Crumbls\Layup\View\BaseView::buildInlineStyles($data) }}"
+     style="{{ \App\Layup\Support\StyleHelper::buildInlineStyles($data) }}"
      {!! $anim !!}>
     {!! $data['content'] ?? '' !!}
 </div>

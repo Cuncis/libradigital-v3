@@ -8,7 +8,7 @@
 @if(count($logos) > 0)
 <div @if(!empty($data['id']))id="{{ $data['id'] }}"@endif
      class="overflow-hidden {{ $vis }} {{ $data['class'] ?? '' }}"
-     style="{{ \Crumbls\Layup\View\BaseView::buildInlineStyles($data) }}"
+     style="{{ \App\Layup\Support\StyleHelper::buildInlineStyles($data) }}"
      {!! \Crumbls\Layup\View\BaseView::animationAttributes($data) !!}
 >
     <div class="flex" style="animation: layup-logo-slide {{ $speed }}s linear infinite; width: max-content">

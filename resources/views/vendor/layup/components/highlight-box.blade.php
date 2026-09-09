@@ -15,7 +15,7 @@
 @endphp
 <div @if(!empty($data['id']))id="{{ $data['id'] }}"@endif
      class="border-l-4 rounded-r-lg p-4 {{ $noteClass }} {{ $vis }} {{ $data['class'] ?? '' }}"
-     style="{{ $variantStyle }} {{ \Crumbls\Layup\View\BaseView::buildInlineStyles($data) }}"
+     style="{{ $variantStyle }} {{ \App\Layup\Support\StyleHelper::buildInlineStyles($data) }}"
      {!! \Crumbls\Layup\View\BaseView::animationAttributes($data) !!}
 >
     <div class="flex gap-2 items-start">

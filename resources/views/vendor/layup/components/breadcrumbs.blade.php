@@ -5,7 +5,7 @@
 @endphp
 <nav @if(!empty($data['id']))id="{{ $data['id'] }}"@endif
      class="text-sm {{ $vis }} {{ $data['class'] ?? '' }}"
-     style="{{ \Crumbls\Layup\View\BaseView::buildInlineStyles($data) }}"
+     style="{{ \App\Layup\Support\StyleHelper::buildInlineStyles($data) }}"
      aria-label="Breadcrumb"
      {!! \Crumbls\Layup\View\BaseView::animationAttributes($data) !!}
 >

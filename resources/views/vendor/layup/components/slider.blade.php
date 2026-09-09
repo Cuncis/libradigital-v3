@@ -3,7 +3,7 @@
         @if(!empty($data['id'])) id="{{ $data['id'] }}" @endif
 class="relative overflow-hidden {{ \Crumbls\Layup\View\BaseView::visibilityClasses($data['hide_on'] ?? []) }} {{ $data['class'] ?? '' }}"
         x-data="layupSlider({{ $slideCount }}, {{ ($data['autoplay'] ?? true) ? 'true' : 'false' }}, {{ $data['speed'] ?? 5000 }})"
-        style="{{ \Crumbls\Layup\View\BaseView::buildInlineStyles($data) }}"
+        style="{{ \App\Layup\Support\StyleHelper::buildInlineStyles($data) }}"
         role="region"
         aria-roledescription="carousel"
         aria-label="{{ $data['label'] ?? 'Image slideshow' }}"

@@ -47,6 +47,13 @@
         }
         .lyp-widget--selected { box-shadow: 0 0 0 2px var(--primary-500); border-radius: 0.375rem; }
 
+        .lyp-structure-node { cursor: grab; }
+        .lyp-structure-node--dragging { opacity: 0.35; }
+        .lyp-structure-node--drop-target { outline: 1px dashed var(--primary-400); background: color-mix(in oklab, var(--primary-500) 4%, transparent) !important; }
+        .lyp-structure-drop { height: 0; overflow: hidden; transition: height 0.15s ease, margin 0.15s ease; border-radius: 0.25rem; border: 2px dashed var(--primary-400); background: color-mix(in oklab, var(--primary-500) 6%, transparent); margin: 0; }
+        .lyp-structure-drop--active { height: 1.25rem; margin: 0.125rem 0; }
+        .lyp-structure-drop--widget { margin-left: 1.25rem; }
+
         {{--
             Fixed viewport height, not auto-grown to content: widgets like
             Hero use `min-height: 70vh` (see hero.blade.php), which resolves
@@ -59,6 +66,33 @@
             native scrollbar for overflow avoids that entirely.
         --}}
         .lyp-canvas-frame { display: block; width: 100%; border: 0; height: 75vh; min-height: 28rem; background: var(--color-white); }
+        .lyp-canvas-inner { position: relative; }
+        .lyp-canvas-drag-overlay { position: absolute; inset: 0; z-index: 10; cursor: copy; }
+
+        .lyp-context-menu {
+            position: fixed;
+            z-index: 100;
+            min-width: 11rem;
+            background: var(--color-white);
+            border-radius: 0.5rem;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 0 0 1px color-mix(in oklab, var(--gray-950) 5%, transparent);
+            padding: 0.25rem;
+        }
+        .dark .lyp-context-menu { background: var(--gray-800); box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.3), 0 0 0 1px color-mix(in oklab, var(--color-white) 10%, transparent); }
+        .lyp-context-menu-item {
+            display: flex; align-items: center; gap: 0.5rem; width: 100%;
+            padding: 0.5rem 0.625rem; border-radius: 0.375rem; border: none; background: none; cursor: pointer;
+            font-size: 0.8125rem; font-weight: 500; color: var(--gray-700); text-align: left;
+        }
+        .dark .lyp-context-menu-item { color: var(--gray-300); }
+        .lyp-context-menu-item:hover:not(:disabled) { background: var(--gray-100); }
+        .dark .lyp-context-menu-item:hover:not(:disabled) { background: var(--gray-700); }
+        .lyp-context-menu-item:disabled { opacity: 0.4; cursor: default; }
+        .lyp-context-menu-item svg { width: 1rem; height: 1rem; flex-shrink: 0; }
+        .lyp-context-menu-item--danger { color: var(--danger-600); }
+        .dark .lyp-context-menu-item--danger { color: var(--danger-400); }
+        .lyp-context-menu-sep { height: 1px; background: var(--gray-200); margin: 0.25rem 0; }
+        .dark .lyp-context-menu-sep { background: var(--gray-700); }
     </style>
 @endonce
 
@@ -182,6 +216,32 @@
                 --}}
                 <iframe x-ref="canvasFrame" @load="onCanvasFrameLoad()" class="lyp-canvas-frame" title="Invitation content"></iframe>
 
+                {{--
+                    Native dragover/drop do NOT reliably cross an iframe
+                    boundary, even same-origin, in either direction — a
+                    drag starting in the left widget panel or the
+                    structure panel (both light DOM) was silently failing
+                    to register a drop inside the canvas iframe. This
+                    transparent overlay sits on top of the iframe only
+                    while such a drag is in flight; being light DOM itself
+                    (same document as the drag source), it reliably
+                    receives dragover/drop, then translates the pointer
+                    position into the iframe's own coordinate space and
+                    uses elementFromPoint() to find the real target inside
+                    it — see onCanvasOverlayDragOver()/Drop() below.
+                    Reordering something that's already inside the canvas
+                    stays on the iframe's own (same-document) listeners —
+                    the overlay only shows for a drag that didn't start in
+                    the canvas (sourceIsFrame is false).
+                --}}
+                <div
+                        x-show="(drag.active && !drag.sourceIsFrame) || (rowDrag.active && !rowDrag.sourceIsFrame)"
+                        x-cloak
+                        class="lyp-canvas-drag-overlay"
+                        @dragover.prevent="onCanvasOverlayDragOver($event)"
+                        @drop.prevent="onCanvasOverlayDrop($event)"
+                ></div>
+
                 {{-- Add Row --}}
                 <div class="lyp-add-row-bottom" x-data="{ showTemplates: false }">
                     <button type="button" @click.stop="showTemplates = !showTemplates" class="lyp-add-row-btn">
@@ -208,18 +268,115 @@
                     <div class="lyp-picker-empty">No rows yet.</div></template>
                 <template x-for="(row, rowIndex) in content.rows" :key="'struct-row-' + row.id">
                     <div class="lyp-structure-row">
-                        <div class="lyp-structure-node lyp-structure-node--row" @click="scrollToRow(row.id)" x-text="'Row ' + (rowIndex + 1)"></div>
+                        {{--
+                            Every drop target/handler here (rowDrag,
+                            onRowDragStart/Over/Drop, drag, onDragStart,
+                            onDragOverWidget, onDragOverCol, onDropCol) is
+                            the exact same Alpine state and methods the
+                            canvas iframe already drives — this is a second
+                            set of native HTML5 drag attributes pointed at
+                            the same logic, not a parallel implementation.
+                            Being light DOM (no iframe boundary), it needs
+                            no coordinate translation at all.
+                        --}}
+                        <div
+                                class="lyp-structure-drop lyp-structure-drop--row"
+                                :class="{ 'lyp-structure-drop--active': rowDrag.dropIndex === rowIndex }"
+                                @dragover.prevent="if (rowDrag.active) rowDrag.dropIndex = rowIndex"
+                                @drop.prevent="onRowDrop($event)"
+                        ></div>
+                        <div
+                                class="lyp-structure-node lyp-structure-node--row"
+                                :class="{ 'lyp-structure-node--dragging': rowDrag.active && rowDrag.rowId === row.id }"
+                                draggable="true"
+                                @dragstart="onRowDragStart($event, row.id, rowIndex)"
+                                @dragend="onRowDragEnd()"
+                                @dragover.prevent.stop="onRowDragOver($event, rowIndex)"
+                                @drop.prevent="onRowDrop($event)"
+                                @click="scrollToRow(row.id)"
+                                @contextmenu.prevent="openContextMenu($event, 'row', row.id, null, null)"
+                                x-text="'Row ' + (rowIndex + 1)"
+                        ></div>
                         <template x-for="(col, colIndex) in row.columns" :key="'struct-col-' + col.id">
                             <div class="lyp-structure-col">
-                                <div class="lyp-structure-node lyp-structure-node--col" @click="scrollToCol(row.id, col.id)" x-text="'Col ' + (colIndex + 1)"></div>
-                                <template x-for="widget in col.widgets" :key="'struct-w-' + widget.id">
-                                    <div
-                                            class="lyp-structure-node lyp-structure-node--widget"
-                                            :class="{ 'lyp-structure-node--selected': selectedWidgetId === widget.id }"
-                                            @click="scrollToWidget(widget.id)"
-                                            x-text="getWidgetLabel(widget.type)"
-                                    ></div></template></div></template></div></template></div>
+                                <div
+                                        class="lyp-structure-node lyp-structure-node--col"
+                                        :class="{ 'lyp-structure-node--drop-target': drag.active }"
+                                        @click="scrollToCol(row.id, col.id)"
+                                        @contextmenu.prevent="openContextMenu($event, 'column', row.id, col.id, null)"
+                                        @dragover.prevent="onDragOverCol($event, row.id, col.id)"
+                                        @dragleave="onDragLeaveCol($event)"
+                                        @drop.prevent="onDropCol($event, row.id, col.id)"
+                                        x-text="'Col ' + (colIndex + 1)"
+                                ></div>
+                                <template x-for="(widget, widgetIndex) in col.widgets" :key="'struct-w-' + widget.id">
+                                    <div>
+                                        <div
+                                                class="lyp-structure-drop lyp-structure-drop--widget"
+                                                :class="{ 'lyp-structure-drop--active': drag.dropTarget?.rowId === row.id && drag.dropTarget?.colId === col.id && drag.dropTarget?.position === widgetIndex }"
+                                        ></div>
+                                        <div
+                                                class="lyp-structure-node lyp-structure-node--widget"
+                                                :class="{ 'lyp-structure-node--selected': selectedWidgetId === widget.id, 'lyp-structure-node--dragging': drag.active && drag.widgetId === widget.id }"
+                                                draggable="true"
+                                                @dragstart="onDragStart($event, row.id, col.id, widget.id, widgetIndex)"
+                                                @dragend="onDragEnd()"
+                                                @dragover.prevent.stop="onDragOverWidget($event, row.id, col.id, widgetIndex)"
+                                                @drop.prevent="onDropCol($event, row.id, col.id)"
+                                                @click="scrollToWidget(widget.id)"
+                                                @contextmenu.prevent="openContextMenu($event, 'widget', row.id, col.id, widget.id)"
+                                                x-text="getWidgetLabel(widget.type)"
+                                        ></div></div></template>
+                                <div
+                                        class="lyp-structure-drop lyp-structure-drop--widget"
+                                        :class="{ 'lyp-structure-drop--active': drag.dropTarget?.rowId === row.id && drag.dropTarget?.colId === col.id && drag.dropTarget?.position === col.widgets.length }"
+                                        @dragover.prevent="onDragOverCol($event, row.id, col.id)"
+                                        @drop.prevent="onDropCol($event, row.id, col.id)"
+                                ></div></div></template></div></template>
+                <div
+                        class="lyp-structure-drop lyp-structure-drop--row"
+                        :class="{ 'lyp-structure-drop--active': rowDrag.dropIndex === content.rows.length }"
+                        @dragover.prevent="if (rowDrag.active) rowDrag.dropIndex = content.rows.length"
+                        @drop.prevent="onRowDrop($event)"
+                ></div></div>
         </div>
+        </div>
+
+        {{-- Right-click context menu: cut/copy/duplicate/paste/delete for a
+             row, column, or widget — triggered from both the canvas iframe
+             (onCanvasFrameContextMenu below) and the structure panel above.
+             position:fixed, so `contextMenu.x/y` are viewport coordinates;
+             openContextMenu() translates iframe-local coordinates into page
+             coordinates when the event originated inside the iframe. --}}
+        <div
+                x-show="contextMenu.open"
+                x-cloak
+                @click.away="closeContextMenu()"
+                @keydown.escape.window="closeContextMenu()"
+                class="lyp-context-menu"
+                :style="'left:' + contextMenu.x + 'px; top:' + contextMenu.y + 'px'"
+                x-transition
+        >
+            <template x-if="contextMenu.kind !== 'canvas'">
+                <div>
+                    <button type="button" class="lyp-context-menu-item" @click="contextCopy()">Copy</button>
+                    <button type="button" class="lyp-context-menu-item" @click="contextCut()">Cut</button>
+                    <button type="button" class="lyp-context-menu-item" @click="contextDuplicate()">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 01-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 011.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 00-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 01-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 00-3.375-3.375h-1.5a1.125 1.125 0 01-1.125-1.125v-1.5a3.375 3.375 0 00-3.375-3.375H9.75"/></svg>
+                        Duplicate
+                    </button>
+                </div>
+            </template>
+            <button type="button" class="lyp-context-menu-item" :disabled="!canPasteHere()" @click="contextPaste()">Paste</button>
+            <template x-if="contextMenu.kind !== 'canvas'">
+                <div>
+                    <div class="lyp-context-menu-sep"></div>
+                    <button type="button" class="lyp-context-menu-item lyp-context-menu-item--danger" @click="contextDelete()">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/></svg>
+                        Delete
+                    </button>
+                </div>
+            </template>
         </div>
 
         {{-- Action mount points (hidden — triggered via JS $wire.mountAction) --}}
@@ -253,6 +410,12 @@
             rightPanelOpen: true,
             selectedWidgetId: null,
             canvasRenderTimer: null,
+
+            // Right-click cut/copy/duplicate/paste/delete. Clipboard is
+            // in-memory only (this editing session, not the system
+            // clipboard or persisted) — pastes always get a fresh id.
+            clipboard: null,
+            contextMenu: {open: false, x: 0, y: 0, kind: null, rowId: null, colId: null, widgetId: null},
 
             // Live (server-rendered) widget previews, keyed by widget content.
             // Seeded from server-rendered HTML on load; refreshed only when a
@@ -385,6 +548,176 @@
                 }
             },
 
+            // ─── Right-click menu: cut/copy/duplicate/paste/delete ─────────────────
+            findRow(rowId) {
+                return (this.content.rows || []).find((r) => r.id === rowId);
+            },
+            findWidget(rowId, colId, widgetId) {
+                const col = this.findCol(rowId, colId);
+                return col ? (col.widgets || []).find((w) => w.id === widgetId) : null;
+            },
+            genId(prefix) {
+                return prefix + '_' + Math.random().toString(36).slice(2, 10);
+            },
+            cloneWidget(widget) {
+                return {id: this.genId('widget'), type: widget.type, data: JSON.parse(JSON.stringify(widget.data || {}))};
+            },
+            cloneColumn(col) {
+                return {
+                    id: this.genId('col'),
+                    span: JSON.parse(JSON.stringify(col.span || {sm: 12, md: 12, lg: 12, xl: 12})),
+                    settings: JSON.parse(JSON.stringify(col.settings || {})),
+                    widgets: (col.widgets || []).map((w) => this.cloneWidget(w)),
+                };
+            },
+            cloneRow(row) {
+                return {
+                    id: this.genId('row'),
+                    settings: JSON.parse(JSON.stringify(row.settings || {})),
+                    columns: (row.columns || []).map((c) => this.cloneColumn(c)),
+                };
+            },
+
+            // Position is in page (viewport) coordinates. Events from the
+            // structure panel are already page-relative; events from the
+            // iframe (view !== window) need the iframe's own offset added.
+            openContextMenu(e, kind, rowId, colId, widgetId) {
+                e.preventDefault();
+                e.stopPropagation();
+                let x = e.clientX;
+                let y = e.clientY;
+                if (e.view && e.view !== window && this.$refs.canvasFrame) {
+                    const rect = this.$refs.canvasFrame.getBoundingClientRect();
+                    x += rect.left;
+                    y += rect.top;
+                }
+                this.contextMenu = {open: true, x, y, kind, rowId, colId, widgetId};
+            },
+            closeContextMenu() {
+                this.contextMenu = {open: false, x: 0, y: 0, kind: null, rowId: null, colId: null, widgetId: null};
+            },
+            canPasteHere() {
+                if (!this.clipboard || !this.contextMenu.open) return false;
+                const ck = this.clipboard.kind;
+                const tk = this.contextMenu.kind;
+                if (ck === 'widget') return tk === 'widget' || tk === 'column';
+                if (ck === 'column') return tk === 'column' || tk === 'row';
+                if (ck === 'row') return tk === 'row' || tk === 'canvas';
+                return false;
+            },
+
+            copyToClipboard(ctx) {
+                if (ctx.kind === 'widget') {
+                    const widget = this.findWidget(ctx.rowId, ctx.colId, ctx.widgetId);
+                    if (widget) this.clipboard = {kind: 'widget', payload: {type: widget.type, data: JSON.parse(JSON.stringify(widget.data || {}))}};
+                } else if (ctx.kind === 'column') {
+                    const col = this.findCol(ctx.rowId, ctx.colId);
+                    if (col) this.clipboard = {kind: 'column', payload: JSON.parse(JSON.stringify({span: col.span, settings: col.settings, widgets: col.widgets}))};
+                } else if (ctx.kind === 'row') {
+                    const row = this.findRow(ctx.rowId);
+                    if (row) this.clipboard = {kind: 'row', payload: JSON.parse(JSON.stringify({settings: row.settings, columns: row.columns}))};
+                }
+            },
+            deleteAt(ctx) {
+                if (ctx.kind === 'widget') this.widgetDelete(ctx.rowId, ctx.colId, ctx.widgetId);
+                else if (ctx.kind === 'column') this.columnDelete(ctx.rowId, ctx.colId);
+                else if (ctx.kind === 'row') this.rowDelete(ctx.rowId);
+            },
+            pasteAt(ctx) {
+                if (!this.clipboard) return;
+                const row = this.findRow(ctx.rowId);
+
+                if (this.clipboard.kind === 'widget') {
+                    const col = this.findCol(ctx.rowId, ctx.colId);
+                    if (!col) return;
+                    const newWidget = this.cloneWidget(this.clipboard.payload);
+                    let position = col.widgets.length;
+                    if (ctx.kind === 'widget') {
+                        const idx = col.widgets.findIndex((w) => w.id === ctx.widgetId);
+                        if (idx !== -1) position = idx + 1;
+                    }
+                    col.widgets = [...col.widgets];
+                    col.widgets.splice(position, 0, newWidget);
+                    this.pushHistory();
+                } else if (this.clipboard.kind === 'column') {
+                    if (!row) return;
+                    const newCol = this.cloneColumn(this.clipboard.payload);
+                    let position = row.columns.length;
+                    if (ctx.kind === 'column') {
+                        const idx = row.columns.findIndex((c) => c.id === ctx.colId);
+                        if (idx !== -1) position = idx + 1;
+                    }
+                    row.columns = [...row.columns];
+                    row.columns.splice(position, 0, newCol);
+                    this.pushHistory();
+                } else if (this.clipboard.kind === 'row') {
+                    const rows = [...(this.content.rows || [])];
+                    const newRow = this.cloneRow(this.clipboard.payload);
+                    let position = rows.length;
+                    const idx = rows.findIndex((r) => r.id === ctx.rowId);
+                    if (idx !== -1) position = idx + 1;
+                    rows.splice(position, 0, newRow);
+                    this.content.rows = rows;
+                    this.pushHistory();
+                }
+            },
+
+            contextCopy() {
+                this.copyToClipboard(this.contextMenu);
+                this.closeContextMenu();
+            },
+            contextCut() {
+                const ctx = {...this.contextMenu};
+                this.copyToClipboard(ctx);
+                this.closeContextMenu();
+                this.deleteAt(ctx);
+            },
+            contextDuplicate() {
+                const ctx = {...this.contextMenu};
+                this.closeContextMenu();
+                if (ctx.kind === 'widget') {
+                    this.widgetDuplicate(ctx.rowId, ctx.colId, ctx.widgetId);
+                } else if (ctx.kind === 'row') {
+                    this.rowDuplicate(ctx.rowId);
+                } else if (ctx.kind === 'column') {
+                    const row = this.findRow(ctx.rowId);
+                    const col = this.findCol(ctx.rowId, ctx.colId);
+                    if (row && col) {
+                        const newCol = this.cloneColumn(col);
+                        const idx = row.columns.findIndex((c) => c.id === ctx.colId);
+                        row.columns = [...row.columns];
+                        row.columns.splice(idx + 1, 0, newCol);
+                        this.pushHistory();
+                    }
+                }
+            },
+            contextDelete() {
+                const ctx = {...this.contextMenu};
+                this.closeContextMenu();
+                this.deleteAt(ctx);
+            },
+            contextPaste() {
+                const ctx = {...this.contextMenu};
+                this.closeContextMenu();
+                this.pasteAt(ctx);
+            },
+
+            onCanvasFrameContextMenu(e) {
+                const widgetEl = e.target.closest('.lyp-frame-widget');
+                const colEl = e.target.closest('.lyp-frame-col');
+                const rowEl = e.target.closest('.lyp-frame-row');
+
+                if (widgetEl) {
+                    this.openContextMenu(e, 'widget', widgetEl.dataset.rowId, widgetEl.dataset.colId, widgetEl.dataset.widgetId);
+                } else if (colEl) {
+                    this.openContextMenu(e, 'column', colEl.dataset.rowId, colEl.dataset.colId, null);
+                } else if (rowEl) {
+                    this.openContextMenu(e, 'row', rowEl.dataset.rowId, null, null);
+                } else if (e.target.closest('#lyp-frame-root')) {
+                    this.openContextMenu(e, 'canvas', null, null, null);
+                }
+            },
+
             // ─── WYSIWYG iframe canvas ─────────────────
             // Re-renders the canvas from the current (possibly unsaved)
             // content via a Livewire round trip, debounced so a burst of
@@ -423,6 +756,7 @@
                 doc.addEventListener('dragend', (e) => this.onCanvasFrameDragEnd(e));
                 doc.addEventListener('dragover', (e) => this.onCanvasFrameDragOver(e));
                 doc.addEventListener('drop', (e) => this.onCanvasFrameDrop(e));
+                doc.addEventListener('contextmenu', (e) => this.onCanvasFrameContextMenu(e));
 
                 this.highlightSelectedWidgetInFrame();
             },
@@ -543,6 +877,98 @@
                 const colEl = e.target.closest('.lyp-frame-col');
                 if (colEl && this.drag.active) {
                     this.onDropCol(e, colEl.dataset.rowId, colEl.dataset.colId);
+                }
+            },
+
+            // ─── Canvas drag overlay (drag starting outside the iframe) ─────────────────
+            // e.clientX/Y are page (viewport) coordinates regardless of
+            // which document dispatched the event, since the overlay is
+            // light DOM. Subtract the iframe's own offset to get a point
+            // in the iframe's coordinate space, then ask the iframe's own
+            // document what's there — same idea as openContextMenu()'s
+            // coordinate translation, just the reverse operation.
+            resolveCanvasDropElement(e) {
+                const iframe = this.$refs.canvasFrame;
+                const doc = iframe?.contentDocument;
+                if (!iframe || !doc) return null;
+
+                const rect = iframe.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                if (x < 0 || y < 0 || x > rect.width || y > rect.height) return null;
+
+                return doc.elementFromPoint(x, y);
+            },
+
+            onCanvasOverlayDragOver(e) {
+                const iframe = this.$refs.canvasFrame;
+                const el = this.resolveCanvasDropElement(e);
+                if (!iframe || !el) return;
+
+                const iframeRect = iframe.getBoundingClientRect();
+
+                if (this.rowDrag.active) {
+                    const rowDropEl = el.closest('[data-lyp-action="row-drop"]');
+                    if (rowDropEl) {
+                        this.rowDrag.dropIndex = parseInt(rowDropEl.dataset.dropIndex, 10);
+                        return;
+                    }
+                    const rowEl = el.closest('.lyp-frame-row');
+                    if (rowEl) {
+                        const rows = Array.from(iframe.contentDocument.querySelectorAll('.lyp-frame-row'));
+                        const idx = rows.indexOf(rowEl);
+                        // rowEl's own rect is in the IFRAME's coordinate
+                        // space; add the iframe's page offset to compare
+                        // against e.clientY (page space).
+                        const localRect = rowEl.getBoundingClientRect();
+                        const outerTop = iframeRect.top + localRect.top;
+                        const position = e.clientY < outerTop + localRect.height / 2 ? idx : idx + 1;
+                        this.rowDrag.dropIndex = (position === this.rowDrag.sourceIndex || position === this.rowDrag.sourceIndex + 1) ? null : position;
+                    }
+                    return;
+                }
+
+                if (!this.drag.active) return;
+
+                const widgetDropEl = el.closest('[data-lyp-action="widget-drop"]');
+                if (widgetDropEl) {
+                    this.drag.dropTarget = {
+                        rowId: widgetDropEl.dataset.rowId,
+                        colId: widgetDropEl.dataset.colId,
+                        position: parseInt(widgetDropEl.dataset.dropIndex, 10),
+                    };
+                    return;
+                }
+
+                const widgetEl = el.closest('.lyp-frame-widget');
+                if (widgetEl) {
+                    const colEl = widgetEl.closest('.lyp-frame-col');
+                    const widgets = colEl ? Array.from(colEl.querySelectorAll(':scope > .lyp-frame-widget')) : [];
+                    const idx = widgets.indexOf(widgetEl);
+                    const localRect = widgetEl.getBoundingClientRect();
+                    const outerTop = iframeRect.top + localRect.top;
+                    const position = e.clientY < outerTop + localRect.height / 2 ? idx : idx + 1;
+                    const rowId = widgetEl.dataset.rowId;
+                    const colId = widgetEl.dataset.colId;
+                    this.drag.dropTarget = (rowId === this.drag.sourceRowId && colId === this.drag.sourceColId && (position === this.drag.sourceIndex || position === this.drag.sourceIndex + 1))
+                        ? null
+                        : {rowId, colId, position};
+                    return;
+                }
+
+                const colEl = el.closest('.lyp-frame-col');
+                if (colEl) {
+                    this.onDragOverCol(e, colEl.dataset.rowId, colEl.dataset.colId);
+                }
+            },
+
+            onCanvasOverlayDrop(e) {
+                if (this.rowDrag.active) {
+                    this.onRowDrop(e);
+                    return;
+                }
+                if (this.drag.active && this.drag.dropTarget) {
+                    this.onDropCol(e, this.drag.dropTarget.rowId, this.drag.dropTarget.colId);
                 }
             },
 
@@ -726,6 +1152,13 @@
                     return;
                 }
                 this.content.rows = this.content.rows.filter(row => row.id !== id);
+                // Every sibling layup-*-deleted/updated listener calls
+                // pushHistory() (which also re-renders the WYSIWYG iframe
+                // canvas — see renderCanvas() above); this one didn't, so a
+                // deleted row was actually gone from `content` but stayed
+                // visible in the canvas until some unrelated action
+                // happened to trigger a re-render.
+                this.pushHistory();
             },
             rowDuplicate: function(id) {
                 let $self = this;
@@ -973,14 +1406,21 @@
             },
 
             // Row drag
-            rowDrag: { active: false, rowId: null, sourceIndex: null, dropIndex: null },
+            rowDrag: { active: false, rowId: null, sourceIndex: null, dropIndex: null, sourceIsFrame: false },
 
             onRowDragStart(e, rowId, index) {
-                this.rowDrag = { active: true, rowId, sourceIndex: index, dropIndex: null };
+                // Same-origin does NOT mean native dragover/drop cross the
+                // iframe boundary reliably (confirmed: they don't, in
+                // either direction). A drag starting here — from the
+                // structure panel or the canvas's own row header — needs
+                // to know whether the canvas overlay below has to step in
+                // to translate coordinates, or whether the iframe's own
+                // (same-document) dragover/drop listeners already cover it.
+                this.rowDrag = { active: true, rowId, sourceIndex: index, dropIndex: null, sourceIsFrame: e.view !== window };
                 e.dataTransfer.effectAllowed = 'move';
                 e.dataTransfer.setData('text/plain', 'row:' + rowId);
             },
-            onRowDragEnd() { this.rowDrag = { active: false, rowId: null, sourceIndex: null, dropIndex: null }; },
+            onRowDragEnd() { this.rowDrag = { active: false, rowId: null, sourceIndex: null, dropIndex: null, sourceIsFrame: false }; },
             onRowDragOver(e, rowIndex) {
                 if (!this.rowDrag.active) return;
                 const rect = e.currentTarget.getBoundingClientRect();
@@ -1010,18 +1450,18 @@
             },
 
             // Widget drag
-            drag: { active: false, widgetId: null, sourceRowId: null, sourceColId: null, sourceIndex: null, dropTarget: null, fromPicker: false, widgetType: null },
+            drag: { active: false, widgetId: null, sourceRowId: null, sourceColId: null, sourceIndex: null, dropTarget: null, fromPicker: false, widgetType: null, sourceIsFrame: false },
 
             onDragStart(e, rowId, colId, widgetId, index) {
-                this.drag = { active: true, widgetId, sourceRowId: rowId, sourceColId: colId, sourceIndex: index, dropTarget: null, fromPicker: false, widgetType: null };
+                this.drag = { active: true, widgetId, sourceRowId: rowId, sourceColId: colId, sourceIndex: index, dropTarget: null, fromPicker: false, widgetType: null, sourceIsFrame: e.view !== window };
                 e.dataTransfer.effectAllowed = 'move';
                 e.dataTransfer.setData('text/plain', widgetId);
             },
-            onDragEnd() { this.drag = { active: false, widgetId: null, sourceRowId: null, sourceColId: null, sourceIndex: null, dropTarget: null, fromPicker: false, widgetType: null }; },
+            onDragEnd() { this.drag = { active: false, widgetId: null, sourceRowId: null, sourceColId: null, sourceIndex: null, dropTarget: null, fromPicker: false, widgetType: null, sourceIsFrame: false }; },
 
-            // Picker drag
+            // Picker drag — always starts in the light-DOM sidebar.
             onPickerDragStart(e, widgetType) {
-                this.drag = { active: true, widgetId: null, sourceRowId: null, sourceColId: null, sourceIndex: null, dropTarget: null, fromPicker: true, widgetType };
+                this.drag = { active: true, widgetId: null, sourceRowId: null, sourceColId: null, sourceIndex: null, dropTarget: null, fromPicker: true, widgetType, sourceIsFrame: false };
                 e.dataTransfer.effectAllowed = 'copy';
                 e.dataTransfer.setData('text/plain', 'picker:' + widgetType);
             },

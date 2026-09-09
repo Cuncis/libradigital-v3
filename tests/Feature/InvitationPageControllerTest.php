@@ -40,6 +40,48 @@ class InvitationPageControllerTest extends TestCase
         $response->assertSee('max-w-[430px]', false);
     }
 
+    /**
+     * Regression, end-to-end through the real widget view (not just the
+     * StyleHelper unit test): Hero's own class list hardcodes
+     * `px-4 py-8 md:px-8 md:py-16`, and every widget's shared Design tab
+     * exposes a padding picker whose data BaseView::buildInlineStyles()
+     * never read at all — so setting padding, including to 0, had no
+     * effect on the rendered page.
+     */
+    public function test_hero_padding_set_to_zero_actually_renders(): void
+    {
+        Invitation::factory()->published()->create([
+            'slug' => 'amara-reyhan',
+            'content' => [
+                'rows' => [[
+                    'id' => 'row_1',
+                    'settings' => [],
+                    'columns' => [[
+                        'id' => 'col_1',
+                        'span' => ['sm' => 12, 'md' => 12, 'lg' => 12, 'xl' => 12],
+                        'settings' => [],
+                        'widgets' => [[
+                            'id' => 'widget_1',
+                            'type' => 'hero',
+                            'data' => [
+                                'heading' => 'Zero Padding Hero',
+                                'padding' => ['unit' => 'px', 'top' => 0, 'right' => 0, 'bottom' => 0, 'left' => 0],
+                            ],
+                        ]],
+                    ]],
+                ]],
+            ],
+        ]);
+
+        $response = $this->get('/i/amara-reyhan');
+
+        $response->assertOk();
+        $response->assertSee('padding-top: 0px;', false);
+        $response->assertSee('padding-right: 0px;', false);
+        $response->assertSee('padding-bottom: 0px;', false);
+        $response->assertSee('padding-left: 0px;', false);
+    }
+
     public function test_draft_invitation_returns_404(): void
     {
         Invitation::factory()->create(['slug' => 'still-drafting', 'status' => 'draft']);

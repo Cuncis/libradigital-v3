@@ -1,5 +1,5 @@
 @php $vis = \Crumbls\Layup\View\BaseView::visibilityClasses($data['hide_on'] ?? []); @endphp
-<ul @if(!empty($data['id']))id="{{ $data['id'] }}"@endif class="space-y-3 {{ $vis }} {{ $data['class'] ?? '' }}" style="{{ \Crumbls\Layup\View\BaseView::buildInlineStyles($data) }}" {!! \Crumbls\Layup\View\BaseView::animationAttributes($data) !!}>
+<ul @if(!empty($data['id']))id="{{ $data['id'] }}"@endif class="space-y-3 {{ $vis }} {{ $data['class'] ?? '' }}" style="{{ \App\Layup\Support\StyleHelper::buildInlineStyles($data) }}" {!! \Crumbls\Layup\View\BaseView::animationAttributes($data) !!}>
     @foreach(($data['items'] ?? []) as $item)
         <li class="flex gap-3 items-start">
             @if(!empty($item['icon']))

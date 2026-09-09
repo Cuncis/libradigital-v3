@@ -4,12 +4,16 @@ namespace App\Filament\User\Pages;
 
 use App\Models\Plan;
 use App\Models\Subscription;
+use BackedEnum;
 use Filament\Pages\Page;
+use Filament\Support\Icons\Heroicon;
 use Illuminate\Support\Collection;
 use Livewire\Attributes\Computed;
 
 class Billing extends Page
 {
+    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedCreditCard;
+
     protected string $view = 'filament.user.pages.billing';
 
     #[Computed]

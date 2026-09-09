@@ -2,6 +2,7 @@
 
 namespace App\Providers\Filament;
 
+use Awcodes\Curator\CuratorPlugin;
 use Crumbls\Layup\LayupPlugin;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
@@ -44,6 +45,9 @@ class AdminPanelProvider extends PanelProvider
             ])
             ->plugins([
                 LayupPlugin::make(),
+                CuratorPlugin::make()
+                    ->label('Media')
+                    ->pluralLabel('Media Library'),
             ])
             ->middleware([
                 EncryptCookies::class,

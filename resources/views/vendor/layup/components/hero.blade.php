@@ -12,7 +12,7 @@
 @endphp
 <div @if(!empty($data['id']))id="{{ $data['id'] }}"@endif
      class="relative flex flex-col justify-center {{ $alignClass }} px-4 py-8 md:px-8 md:py-16 overflow-hidden {{ $vis }} {{ $data['class'] ?? '' }}"
-     style="min-height: {{ $height }}; {{ \Crumbls\Layup\View\BaseView::buildInlineStyles($data) }}"
+     style="min-height: {{ $height }}; {{ \App\Layup\Support\StyleHelper::buildInlineStyles($data) }}"
      {!! \Crumbls\Layup\View\BaseView::animationAttributes($data) !!}
 >
     @if(!empty($data['background_image']))

@@ -5,7 +5,7 @@
 @endphp
 <div @if(!empty($data['id']))id="{{ $data['id'] }}"@endif
      class="py-3 px-4 text-center text-sm {{ $vis }} {{ $data['class'] ?? '' }}"
-     style="background-color: {{ $bg }}; color: {{ $textColor }}; {{ \Crumbls\Layup\View\BaseView::buildInlineStyles($data) }}"
+     style="background-color: {{ $bg }}; color: {{ $textColor }}; {{ \App\Layup\Support\StyleHelper::buildInlineStyles($data) }}"
      {!! \Crumbls\Layup\View\BaseView::animationAttributes($data) !!}
      @if(!empty($data['dismissible'])) x-data="{ show: true }" x-show="show" x-transition @endif
 >

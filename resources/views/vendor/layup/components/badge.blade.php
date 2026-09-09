@@ -25,6 +25,6 @@
     @if(!empty($data['link_url']))href="{{ $data['link_url'] }}"@endif
     @if(!empty($data['id']))id="{{ $data['id'] }}"@endif
     class="inline-block rounded-full font-medium {{ $useStyleVariant ? '' : $colors }} {{ $sizeClass }} {{ $vis }} {{ $data['class'] ?? '' }}"
-    style="{{ $badgeStyle }} {{ \Crumbls\Layup\View\BaseView::buildInlineStyles($data) }}"
+    style="{{ $badgeStyle }} {{ \App\Layup\Support\StyleHelper::buildInlineStyles($data) }}"
     {!! \Crumbls\Layup\View\BaseView::animationAttributes($data) !!}
 >{{ $data['text'] ?? '' }}</{{ $tag }}>

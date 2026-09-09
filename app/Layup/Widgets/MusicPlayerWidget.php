@@ -4,8 +4,9 @@ declare(strict_types=1);
 
 namespace App\Layup\Widgets;
 
+use App\Models\Media;
+use Awcodes\Curator\Components\Forms\CuratorPicker;
 use Crumbls\Layup\View\BaseWidget;
-use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Toggle;
 
 class MusicPlayerWidget extends BaseWidget
@@ -33,9 +34,11 @@ class MusicPlayerWidget extends BaseWidget
     public static function getContentFormSchema(): array
     {
         return [
-            FileUpload::make('audio_file')
+            // Stores the picked Media Library record's id, not a storage
+            // path — see music-player.blade.php, which resolves it back
+            // to a URL, and getPreview() below.
+            CuratorPicker::make('audio_file')
                 ->label('Audio file')
-                ->directory('layup/audio')
                 ->acceptedFileTypes(['audio/mpeg', 'audio/mp4', 'audio/ogg', 'audio/wav'])
                 ->maxSize(config('layup.uploads.max_size', 10240)),
 
@@ -56,7 +59,11 @@ class MusicPlayerWidget extends BaseWidget
 
     public static function getPreview(array $data): string
     {
-        return empty($data['audio_file']) ? '(no audio file)' : basename((string) $data['audio_file']);
+        if (empty($data['audio_file'])) {
+            return '(no audio file)';
+        }
+
+        return Media::query()->find($data['audio_file'])?->pretty_name ?? '(audio file removed)';
     }
 
     protected function getViewName(): string

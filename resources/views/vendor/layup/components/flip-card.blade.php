@@ -5,7 +5,7 @@
 @endphp
 <div @if(!empty($data['id']))id="{{ $data['id'] }}"@endif
      class="group {{ $vis }} {{ $data['class'] ?? '' }}"
-     style="perspective: 1000px; height: {{ $height }}; {{ \Crumbls\Layup\View\BaseView::buildInlineStyles($data) }}"
+     style="perspective: 1000px; height: {{ $height }}; {{ \App\Layup\Support\StyleHelper::buildInlineStyles($data) }}"
      {!! \Crumbls\Layup\View\BaseView::animationAttributes($data) !!}
 >
     <div class="relative w-full h-full transition-transform duration-700" style="transform-style: preserve-3d; group-hover:transform: {{ $dir }}" x-data="{ flipped: false }" @mouseenter="flipped = true" @mouseleave="flipped = false" :style="flipped ? 'transform: {{ $dir }}' : ''">

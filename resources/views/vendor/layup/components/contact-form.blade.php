@@ -2,7 +2,7 @@
 <form action="{{ $data['action'] ?? '/contact' }}" method="POST"
       @if(!empty($data['id']))id="{{ $data['id'] }}"@endif
       class="space-y-4 {{ $vis }} {{ $data['class'] ?? '' }}"
-      style="{{ \Crumbls\Layup\View\BaseView::buildInlineStyles($data) }}"
+      style="{{ \App\Layup\Support\StyleHelper::buildInlineStyles($data) }}"
       {!! \Crumbls\Layup\View\BaseView::animationAttributes($data) !!}
       x-data="{ submitted: false }"
       @submit.prevent="

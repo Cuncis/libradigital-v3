@@ -8,7 +8,7 @@
 @endphp
 <nav @if(!empty($data['id']))id="{{ $data['id'] }}"@endif
      class="border dark:border-gray-700 rounded-lg p-4 {{ $sticky ? 'sticky top-4' : '' }} {{ $vis }} {{ $data['class'] ?? '' }}"
-     style="{{ \Crumbls\Layup\View\BaseView::buildInlineStyles($data) }}"
+     style="{{ \App\Layup\Support\StyleHelper::buildInlineStyles($data) }}"
      {!! \Crumbls\Layup\View\BaseView::animationAttributes($data) !!}
      x-data="{
         open: {{ $collapsible ? 'false' : 'true' }},

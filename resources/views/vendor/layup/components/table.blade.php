@@ -1,5 +1,5 @@
 @php $vis = \Crumbls\Layup\View\BaseView::visibilityClasses($data['hide_on'] ?? []); @endphp
-<div @if(!empty($data['id']))id="{{ $data['id'] }}"@endif class="overflow-x-auto {{ $vis }} {{ $data['class'] ?? '' }}" style="{{ \Crumbls\Layup\View\BaseView::buildInlineStyles($data) }}" {!! \Crumbls\Layup\View\BaseView::animationAttributes($data) !!}>
+<div @if(!empty($data['id']))id="{{ $data['id'] }}"@endif class="overflow-x-auto {{ $vis }} {{ $data['class'] ?? '' }}" style="{{ \App\Layup\Support\StyleHelper::buildInlineStyles($data) }}" {!! \Crumbls\Layup\View\BaseView::animationAttributes($data) !!}>
     <table class="w-full text-sm text-left">
         @if(!empty($data['caption']))
             <caption class="text-sm text-gray-500 dark:text-gray-400 mb-2">{{ $data['caption'] }}</caption>

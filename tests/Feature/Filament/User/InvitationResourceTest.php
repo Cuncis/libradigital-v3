@@ -3,6 +3,7 @@
 namespace Tests\Feature\Filament\User;
 
 use App\Filament\User\Resources\Invitations\Pages\CreateInvitation;
+use App\Filament\User\Resources\Invitations\Pages\EditInvitation;
 use App\Models\Invitation;
 use App\Models\Plan;
 use App\Models\Subscription;
@@ -118,5 +119,43 @@ class InvitationResourceTest extends TestCase
         $response = $this->actingAs($customer)->get('/user/invitations/create');
 
         $response->assertForbidden();
+    }
+
+    /**
+     * Regression: the header "Save changes" button used to reuse
+     * getSaveFormAction(), which renders a native type="submit" button
+     * wired to the <form>'s wire:submit — that only works while the
+     * button lives inside that <form>. Header actions render outside it,
+     * so clicking Save silently did nothing. Fixed by calling save()
+     * directly via ->action('save') instead. That action has no
+     * ->submit()/->requiresConfirmation()/URL, so Filament renders it as a
+     * plain wire:click="save" rather than routing through the
+     * mounted-action pipeline — confirmed below — so this calls save()
+     * directly rather than through ->callAction(), which simulates that
+     * different pipeline instead of a real click on this specific button.
+     */
+    public function test_the_header_save_action_actually_persists_changes(): void
+    {
+        $customer = $this->subscribedCustomer();
+        $invitation = Invitation::factory()->for($customer)->create(['title' => 'Original Title']);
+
+        Livewire::actingAs($customer)
+            ->test(EditInvitation::class, ['record' => $invitation->getRouteKey()])
+            ->fillForm(['title' => 'Updated Title'])
+            ->call('save')
+            ->assertHasNoFormErrors();
+
+        $this->assertSame('Updated Title', $invitation->fresh()->title);
+    }
+
+    public function test_the_save_button_renders_as_a_direct_livewire_click_handler(): void
+    {
+        $customer = $this->subscribedCustomer();
+        $invitation = Invitation::factory()->for($customer)->create();
+
+        $response = $this->actingAs($customer)->get("/user/invitations/{$invitation->id}/edit");
+
+        $response->assertOk();
+        $response->assertSee('wire:click="save"', false);
     }
 }

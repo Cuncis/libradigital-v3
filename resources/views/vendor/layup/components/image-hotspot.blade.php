@@ -5,7 +5,7 @@
 @if(!empty($data['image']))
 <div @if(!empty($data['id']))id="{{ $data['id'] }}"@endif
      class="relative inline-block {{ $vis }} {{ $data['class'] ?? '' }}"
-     style="{{ \Crumbls\Layup\View\BaseView::buildInlineStyles($data) }}"
+     style="{{ \App\Layup\Support\StyleHelper::buildInlineStyles($data) }}"
      {!! \Crumbls\Layup\View\BaseView::animationAttributes($data) !!}
 >
     <img src="{{ (str_starts_with($data['image'], 'http') ? $data['image'] : \Illuminate\Support\Facades\Storage::disk(config('layup.uploads.disk', 'public'))->url($data['image'])) }}" alt="" class="w-full h-auto block rounded" />

@@ -4,8 +4,10 @@ namespace App\Filament\User\Pages;
 
 use App\Models\Guest;
 use App\RsvpStatus;
+use BackedEnum;
 use Filament\Actions\Action;
 use Filament\Pages\Page;
+use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Tables\Contracts\HasTable;
@@ -15,6 +17,8 @@ use Livewire\Attributes\Computed;
 class Rsvps extends Page implements HasTable
 {
     use InteractsWithTable;
+
+    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedClipboardDocumentCheck;
 
     protected string $view = 'filament.user.pages.rsvps';
 

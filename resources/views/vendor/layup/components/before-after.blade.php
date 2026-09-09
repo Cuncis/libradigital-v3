@@ -5,7 +5,7 @@
 @if(!empty($data['before_image']) && !empty($data['after_image']))
 <div @if(!empty($data['id']))id="{{ $data['id'] }}"@endif
      class="relative overflow-hidden select-none {{ $vis }} {{ $data['class'] ?? '' }}"
-     style="{{ \Crumbls\Layup\View\BaseView::buildInlineStyles($data) }}"
+     style="{{ \App\Layup\Support\StyleHelper::buildInlineStyles($data) }}"
      {!! \Crumbls\Layup\View\BaseView::animationAttributes($data) !!}
      x-data="{ pos: {{ $pos }}, dragging: false }"
      @mousedown="dragging = true"

@@ -3,7 +3,7 @@
 namespace App\Filament\Resources\Themes\Schemas;
 
 use App\Layup\Forms\Components\LayupBuilder;
-use Filament\Forms\Components\FileUpload;
+use Awcodes\Curator\Components\Forms\CuratorPicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
@@ -34,10 +34,13 @@ class ThemeForm
                     Textarea::make('description')
                         ->columnSpanFull(),
 
-                    FileUpload::make('preview_image')
-                        ->image()
-                        ->disk('r2')
-                        ->directory('theme-previews')
+                    // Not a relationship — this stores the picked Media
+                    // record's id directly in the plain `preview_image`
+                    // string column (see ThemesTable's ImageColumn, which
+                    // resolves that id back to a URL). A real belongsTo
+                    // would need a dedicated FK column; not worth a
+                    // migration for a single admin-only preview image.
+                    CuratorPicker::make('preview_image')
                         ->columnSpanFull(),
 
                     Toggle::make('is_active')

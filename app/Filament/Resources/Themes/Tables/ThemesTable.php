@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Themes\Tables;
 
+use App\Models\Media;
 use App\Models\Theme;
 use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
@@ -22,9 +23,12 @@ class ThemesTable
     {
         return $table
             ->columns([
+                // preview_image holds a Media Library record id now (see
+                // ThemeForm), not a storage path — resolve it to a URL
+                // ourselves rather than letting ImageColumn treat it as one.
                 ImageColumn::make('preview_image')
-                    ->disk('r2')
-                    ->label(''),
+                    ->label('')
+                    ->getStateUsing(fn (Theme $record): ?string => Media::query()->find($record->preview_image)?->url),
 
                 TextColumn::make('name')
                     ->searchable()

@@ -9,7 +9,7 @@
 <form action="{{ $data['action'] ?? '/search' }}" method="GET"
       @if(!empty($data['id']))id="{{ $data['id'] }}"@endif
       class="flex flex-col sm:flex-row {{ $vis }} {{ $data['class'] ?? '' }}"
-      style="{{ \Crumbls\Layup\View\BaseView::buildInlineStyles($data) }}"
+      style="{{ \App\Layup\Support\StyleHelper::buildInlineStyles($data) }}"
       {!! \Crumbls\Layup\View\BaseView::animationAttributes($data) !!}
 >
     <input type="search" name="{{ $data['param'] ?? 'q' }}"

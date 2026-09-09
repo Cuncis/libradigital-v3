@@ -26,12 +26,33 @@ class EditInvitation extends EditRecord
         return [
             Action::make('preview')
                 ->label('Preview')
+                ->color('gray')
                 ->icon(Heroicon::OutlinedEye)
                 ->url(fn (Invitation $record): string => route('invitations.preview', $record))
                 ->openUrlInNewTab(),
+            // Not getSaveFormAction() — that renders a native type="submit"
+            // button wired to the <form>'s wire:submit, which only works
+            // while the button lives inside that <form>. Header actions
+            // render outside it, so the button did nothing when clicked.
+            // ->action() calls the same save() method directly instead,
+            // the same way every other header action (Delete, Restore...)
+            // already works regardless of where it renders.
+            Action::make('save')
+                ->label('Save changes')
+                ->color('primary')
+                ->icon(Heroicon::OutlinedCheck)
+                ->action('save')
+                ->keyBindings(['mod+s']),
             DeleteAction::make(),
             ForceDeleteAction::make(),
             RestoreAction::make(),
         ];
+    }
+
+    // Save moved into the header (between Preview and Delete) above, so the
+    // default sticky bottom bar would otherwise just duplicate it.
+    protected function getFormActions(): array
+    {
+        return [];
     }
 }

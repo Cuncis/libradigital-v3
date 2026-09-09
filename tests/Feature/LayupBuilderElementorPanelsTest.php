@@ -122,4 +122,126 @@ class LayupBuilderElementorPanelsTest extends TestCase
         $this->assertSame('sm', config('layup.default_breakpoint'));
         $this->assertSame(390, config('layup.breakpoints.sm.width'));
     }
+
+    /**
+     * Right-click cut/copy/duplicate/paste/delete menu, wired up from both
+     * the canvas iframe and the structure panel.
+     */
+    public function test_the_create_page_wires_up_the_context_menu(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+
+        $response = $this->actingAs($admin)->get('/admin/invitations/create');
+
+        $response->assertOk();
+        $response->assertSee('class="lyp-context-menu"', false);
+        $response->assertSee('@click="contextCopy()"', false);
+        $response->assertSee('@click="contextCut()"', false);
+        $response->assertSee('@click="contextDuplicate()"', false);
+        $response->assertSee('@click="contextPaste()"', false);
+        $response->assertSee('@click="contextDelete()"', false);
+        $response->assertSee(':disabled="!canPasteHere()"', false);
+
+        // Triggered from the structure panel's row/column/widget nodes
+        // (the iframe's own delegated listener, wired in onCanvasFrameLoad,
+        // lives inside the Livewire @script block, which the raw HTTP
+        // response HTML-escapes — not worth asserting against that form).
+        $response->assertSee("openContextMenu(\$event, 'row', row.id, null, null)", false);
+        $response->assertSee("openContextMenu(\$event, 'column', row.id, col.id, null)", false);
+        $response->assertSee("openContextMenu(\$event, 'widget', row.id, col.id, widget.id)", false);
+    }
+
+    /**
+     * Regression: deleting a row (from the row toolbar or the right-click
+     * menu) opens Layup's own confirmation modal — on confirm, the server
+     * removes it from `content.rows` and dispatches a `layup-row-deleted`
+     * browser event, whose listener called rowDeleted(id) to filter the
+     * row out of the client's `content.rows` too. Every sibling
+     * layup-*-deleted/updated listener also calls pushHistory() (which
+     * re-renders the WYSIWYG iframe canvas), but rowDeleted() didn't — so
+     * the row genuinely was gone from state, yet stayed visible in the
+     * canvas until some unrelated action happened to trigger a re-render.
+     * From the user's seat: "right-click delete row, it doesn't delete."
+     */
+    public function test_row_deletion_triggers_a_canvas_re_render(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+
+        $response = $this->actingAs($admin)->get('/admin/invitations/create');
+        $response->assertOk();
+
+        $html = $response->getContent();
+        $start = strpos($html, 'rowDeleted: function(id) {');
+        $this->assertNotFalse($start, 'rowDeleted() not found.');
+        $body = substr($html, $start, 400);
+
+        $this->assertStringContainsString('pushHistory()', $body);
+    }
+
+    /**
+     * The structure panel used to be click-to-scroll-only. It now drives
+     * the exact same drag state/methods the canvas iframe already uses
+     * (rowDrag + onRowDragStart/Over/Drop for rows, drag + onDragStart/
+     * onDragOverWidget/onDragOverCol/onDropCol for widgets and for
+     * dropping a palette widget straight into a column) — a second set of
+     * native HTML5 drag attributes on the light-DOM nodes, not a parallel
+     * implementation, so dragging a row/widget in the structure panel
+     * reorders it, and dragging a widget from the left palette onto a
+     * structure panel row/column inserts it there too.
+     */
+    public function test_the_structure_panel_supports_drag_and_drop(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+
+        $response = $this->actingAs($admin)->get('/admin/invitations/create');
+
+        $response->assertOk();
+
+        // Rows: draggable to reorder, and a drop target for both dragged
+        // rows and (via the row-level onRowDragOver call underneath) a
+        // palette drop landing directly on a row node.
+        $response->assertSee('@dragstart="onRowDragStart($event, row.id, rowIndex)"', false);
+        $response->assertSee('@dragend="onRowDragEnd()"', false);
+        $response->assertSee('@dragover.prevent.stop="onRowDragOver($event, rowIndex)"', false);
+
+        // Columns: drop target for a widget dragged from the palette or
+        // moved from elsewhere in the canvas.
+        $response->assertSee('@dragover.prevent="onDragOverCol($event, row.id, col.id)"', false);
+        $response->assertSee('@drop.prevent="onDropCol($event, row.id, col.id)"', false);
+
+        // Widgets: draggable to reorder/move between columns.
+        $response->assertSee('@dragstart="onDragStart($event, row.id, col.id, widget.id, widgetIndex)"', false);
+        $response->assertSee('@dragover.prevent.stop="onDragOverWidget($event, row.id, col.id, widgetIndex)"', false);
+
+        $response->assertSee('class="lyp-structure-drop lyp-structure-drop--row"', false);
+        $response->assertSee('class="lyp-structure-drop lyp-structure-drop--widget"', false);
+    }
+
+    /**
+     * Regression: "I can't drag and drop into the canvas." Native HTML5
+     * dragover/drop do not reliably cross an iframe boundary, even
+     * same-origin, in either direction — a drag starting in the left
+     * widget palette (or the structure panel) was silently failing to
+     * register anywhere inside the canvas iframe, since the iframe's own
+     * dragover/drop listeners only ever receive events for drags that
+     * started inside that same document. The overlay sitting on top of
+     * the iframe (light DOM, so it reliably receives the drag) only shows
+     * for a drag that didn't start in the canvas itself — reordering
+     * something already inside the canvas keeps using the iframe's own
+     * listeners, which only ever worked because source and target share
+     * one document.
+     */
+    public function test_the_canvas_has_a_light_dom_drag_overlay_for_drags_starting_outside_it(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+
+        $response = $this->actingAs($admin)->get('/admin/invitations/create');
+
+        $response->assertOk();
+        $response->assertSee('class="lyp-canvas-drag-overlay"', false);
+        $response->assertSee('@dragover.prevent="onCanvasOverlayDragOver($event)"', false);
+        $response->assertSee('@drop.prevent="onCanvasOverlayDrop($event)"', false);
+        $response->assertSee('!drag.sourceIsFrame', false);
+        $response->assertSee('!rowDrag.sourceIsFrame', false);
+    }
 }

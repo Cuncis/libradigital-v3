@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Invitation;
+use App\Models\Media;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
@@ -69,13 +70,27 @@ class CustomWidgetsTest extends TestCase
         $response->assertDontSee('BCA');
     }
 
-    public function test_music_player_resolves_audio_via_the_configured_upload_disk(): void
+    /**
+     * audio_file holds a Media Library record id now (picked via
+     * CuratorPicker), not a raw storage path — see MusicPlayerWidget and
+     * music-player.blade.php.
+     */
+    public function test_music_player_resolves_audio_via_the_media_librarys_configured_disk(): void
     {
         Storage::shouldReceive('disk')->with('r2')->andReturnSelf();
         Storage::shouldReceive('url')->with('invitations/song.mp3')->andReturn('https://cdn.example.test/invitations/song.mp3');
 
+        $media = Media::query()->create([
+            'disk' => 'r2',
+            'visibility' => 'public',
+            'name' => 'song',
+            'path' => 'invitations/song.mp3',
+            'type' => 'audio/mpeg',
+            'ext' => 'mp3',
+        ]);
+
         $this->invitationWithWidget('music-player', [
-            'audio_file' => 'invitations/song.mp3',
+            'audio_file' => $media->id,
             'autoplay' => false,
         ]);
 

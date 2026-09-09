@@ -16,7 +16,7 @@
 @endphp
 <div @if(!empty($data['id']))id="{{ $data['id'] }}"@endif
      class="border-l-4 p-4 rounded-r {{ $vis }} {{ $data['class'] ?? '' }}"
-     style="{{ $typeStyle }} {{ \Crumbls\Layup\View\BaseView::buildInlineStyles($data) }}"
+     style="{{ $typeStyle }} {{ \App\Layup\Support\StyleHelper::buildInlineStyles($data) }}"
      {!! \Crumbls\Layup\View\BaseView::animationAttributes($data) !!}
      @if(!empty($data['dismissible'])) x-data="{ show: true }" x-show="show" x-transition @endif
 >

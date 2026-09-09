@@ -38,7 +38,7 @@
     style="
         @if(!empty($data['align_self']) && $data['align_self'] !== 'auto')align-self: {{ match($data['align_self']) { 'start' => 'flex-start', 'end' => 'flex-end', default => $data['align_self'] } }};@endif
         @if(!empty($data['overflow']) && $data['overflow'] !== 'visible')overflow: {{ $data['overflow'] }};@endif
-        {{ \Crumbls\Layup\View\BaseView::buildInlineStyles($data) }}
+        {{ \App\Layup\Support\StyleHelper::buildInlineStyles($data) }}
     "
 >
     @foreach($children as $child)
