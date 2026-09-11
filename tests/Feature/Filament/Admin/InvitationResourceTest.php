@@ -3,6 +3,7 @@
 namespace Tests\Feature\Filament\Admin;
 
 use App\Filament\Resources\Invitations\Pages\EditInvitation;
+use App\Filament\Resources\Invitations\Pages\ListInvitations;
 use App\Models\Invitation;
 use App\Models\User;
 use App\UserRole;
@@ -109,40 +110,41 @@ class InvitationResourceTest extends TestCase
     }
 
     /**
-     * The real guest-facing link (route('invitations.show'), /i/{slug}) —
-     * distinct from "Preview", which opens a separate auth-gated route.
-     * Checked on both the list row action and the edit page header
-     * action, since InvitationResource::copyLinkAction() is shared by both.
+     * Copy Link opens a modal to customize the slug (the customizable part
+     * of route('invitations.show'), /i/{slug}) and copies the resulting
+     * link on submit — merged from two previously separate actions (a
+     * read-only Copy Link and a slug-editing Customize Link) per explicit
+     * request to make them one. Driven through Filament's table-action
+     * testing helpers rather than static HTML, since the URL is no longer
+     * embedded directly in the page markup (it's built after the slug is
+     * saved, inside the ->action() closure) the way the old alpineClickHandler
+     * version baked it in statically.
      *
-     * Regression: route('invitations.show', $record) (passing the model
-     * directly) silently embedded the model's route key (id) instead of
-     * its slug — /i/{slug}'s parameter isn't named "invitation", so
-     * Laravel's URL generator has no binding field to consult and just
-     * calls $record->getRouteKey() (id). That 404'd for guests. Asserting
-     * only that the embedded JS matched route('invitations.show', $record)
-     * (as this test used to) doesn't catch that, since the same wrong call
-     * appears on both sides — so this also hits the embedded URL directly
-     * and asserts it actually resolves to the invitation's page.
+     * Regression guard carried over from the previous version of this
+     * test: route('invitations.show', $record) (passing the model
+     * directly) silently embeds the model's route key (id) instead of its
+     * slug — /i/{slug}'s parameter isn't named "invitation", so Laravel's
+     * URL generator has no binding field to consult. Asserted here by
+     * actually requesting the copied URL and confirming it resolves.
      */
-    public function test_the_copy_link_action_embeds_the_real_public_url(): void
+    public function test_the_copy_link_action_saves_the_slug_and_copies_the_link(): void
     {
         $admin = User::factory()->create(['role' => UserRole::Admin]);
-        $invitation = Invitation::factory()->published()->create(['slug' => 'amara-reyhan']);
-        $publicUrl = route('invitations.show', ['slug' => $invitation->slug]);
-        $publicUrlJs = Js::from($publicUrl)->toHtml();
+        $invitation = Invitation::factory()->published()->create(['slug' => 'old-slug']);
 
-        $listResponse = $this->actingAs($admin)->get('/admin/invitations');
-        $listResponse->assertOk();
-        $listResponse->assertSee('Copy Link');
-        $listResponse->assertSee('navigator.clipboard.writeText', false);
-        $listResponse->assertSee($publicUrlJs, false);
+        Livewire::actingAs($admin)
+            ->test(ListInvitations::class)
+            ->mountTableAction('copyLink', $invitation)
+            ->assertTableActionDataSet(['slug' => 'old-slug'])
+            ->setTableActionData(['slug' => 'amara-reyhan'])
+            ->callMountedTableAction()
+            ->assertHasNoTableActionErrors()
+            ->assertJs('window.navigator.clipboard.writeText('.Js::from(route('invitations.show', ['slug' => 'amara-reyhan']))->toHtml().')');
 
-        $editResponse = $this->actingAs($admin)->get("/admin/invitations/{$invitation->id}/edit");
-        $editResponse->assertOk();
-        $editResponse->assertSee('Copy Link');
-        $editResponse->assertSee($publicUrlJs, false);
+        $invitation->refresh();
+        $this->assertSame('amara-reyhan', $invitation->slug);
 
-        $this->get($publicUrl)->assertOk();
+        $this->get(route('invitations.show', ['slug' => $invitation->slug]))->assertOk();
     }
 
     /**
@@ -161,6 +163,23 @@ class InvitationResourceTest extends TestCase
 
         $response->assertOk();
         $response->assertSee('fi-icon-btn', false);
+    }
+
+    /**
+     * event_date was dropped as a list column (still editable in the form's
+     * Details section) — the label Filament auto-generates for it, per
+     * Column::getLabel(), is "Event date" (kebab-case name -> spaces ->
+     * ucfirst), not "Event Date", so that's the exact string asserted gone.
+     */
+    public function test_the_event_date_column_is_removed_from_the_list(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        Invitation::factory()->create();
+
+        $response = $this->actingAs($admin)->get('/admin/invitations');
+
+        $response->assertOk();
+        $response->assertDontSee('Event date');
     }
 
     public function test_admin_sees_invitations_from_every_owner(): void

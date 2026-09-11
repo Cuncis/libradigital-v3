@@ -31,10 +31,6 @@ class InvitationsTable
                         default => 'gray',
                     }),
 
-                TextColumn::make('event_date')
-                    ->dateTime()
-                    ->sortable(),
-
                 TextColumn::make('published_at')
                     ->dateTime()
                     ->placeholder('—')

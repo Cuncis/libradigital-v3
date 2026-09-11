@@ -458,6 +458,24 @@ Fix: pass the slug explicitly — `route('invitations.show', ['slug' => $record-
 
 **Tests**: both `InvitationResourceTest::test_the_copy_link_action_embeds_the_real_public_url()` tests previously built their expected URL with the same buggy `route('invitations.show', $invitation)` call the production code used, so a matching (but wrong) URL on both sides passed silently — the tests didn't catch this. Fixed the expected-URL construction the same way, and added `$this->get($publicUrl)->assertOk()` so the test now actually requests the embedded URL and confirms it resolves, which is what would have caught the regression originally. Full suite: 156/156 passing.
 
+## Ad-hoc: dropped the Event Date list column, added a "Customize Link" quick action
+
+Two small follow-up requests. First, `event_date` is gone as a table column in both `InvitationsTable.php` files (still fully editable via the form's collapsed "Details" section — this only affects the list view).
+
+Second, a "Customize Link" row action (`InvitationResource::customizeLinkAction()`, both panels) lets the slug — the customizable part of the public `/i/{slug}` link — be changed directly from the list, without opening the full editor and expanding "Details" to find it. It's a small modal with a single `slug` `TextInput` (prefixed with the real base URL for clarity), pre-filled via `->fillForm()` with the record's current slug, saving with a plain `$record->update()` and a success notification. Placed next to Copy Link in both tables' `recordActions`, with `->iconButton()` applied like the other 4 row actions. Deliberately *not* added to the Edit page's header actions — that page already has its own editable slug field in the Details section, and a second slug-editing control there risks the edit form's already-loaded (now-stale) slug value silently overwriting a change made via the quick action on next Save.
+
+**Tests**: added to both `InvitationResourceTest` suites — one asserting "Event date" (Filament's auto-generated label for that column) no longer appears in the list response; one driving the modal through Filament's table-action testing helpers (`mountTableAction` → `assertTableActionDataSet` confirms the pre-fill → `setTableActionData` → `callMountedTableAction` → `assertHasNoTableActionErrors`) and asserting the slug actually persisted. Full suite: 160/160 passing.
+
+## Ad-hoc: merged Copy Link and Customize Link into one action
+
+Follow-up: the previous entry added Copy Link and Customize Link as two separate row-action icons. Asked to make them one — clicking the (single) Copy Link icon should open a popup that lets the link be customized, with a "copy link" control inside that same popup, rather than two icons doing related but separate things.
+
+`InvitationResource::copyLinkAction()` (both panels) now *is* the modal: same `slug` `TextInput` + `->fillForm()` pre-fill from the old Customize Link action, with `->modalSubmitActionLabel('Copy Link')` so the single submit button both saves the slug and copies the resulting link — `customizeLinkAction()` is gone, and the row actions are back to 4 (Preview, Copy Link, Edit, Delete), matching the original "4 actions, icon-only" request.
+
+The clipboard write is no longer the old `alpineClickHandler()` (pure client-side, no server round trip) — since the URL can now depend on a slug just changed in the same click, it has to happen *after* the save. Used Livewire's `$livewire->js($expression)` (`$livewire` is injectable into any evaluated Action closure by parameter name, confirmed in `Action::resolveDefaultClosureDependencyForEvaluationByName()`) inside `->action()`, right after `$record->update()`, to run `navigator.clipboard.writeText(...)` client-side once the new slug is known — paired with a `Notification::make()->title('Link copied')` for feedback, replacing the old Alpine `$tooltip()` call (which was anchored to the clicking element via inline `x-on:click`; `$livewire->js()` evaluates against the Livewire component's root element instead, where that anchoring doesn't apply the same way, so a notification is the more reliable feedback here).
+
+**Tests**: replaced the previous HTML-assertion Copy Link test and the separate Customize Link test with one Livewire table-action test per panel — mounts `copyLink`, confirms the pre-filled slug via `assertTableActionDataSet`, changes it, calls the mounted action, asserts no errors, and asserts the exact clipboard-write JS was evaluated via Livewire's `assertJs()`. Kept the regression guard from the original Copy Link bug fix by actually requesting the resulting URL and asserting it resolves. Full suite: 158/158 passing.
+
 ## Phase 12 — Pre-release hardening
 
 - [ ] Confirm MySQL is fully configured for production (connection, backups — see below) rather than the Laravel skeleton's SQLite default.

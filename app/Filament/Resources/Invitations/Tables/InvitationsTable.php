@@ -42,10 +42,6 @@ class InvitationsTable
                     ->label('Custom build')
                     ->boolean(),
 
-                TextColumn::make('event_date')
-                    ->dateTime()
-                    ->sortable(),
-
                 TextColumn::make('updated_at')
                     ->dateTime()
                     ->sortable(),

@@ -11,6 +11,8 @@ use App\Filament\User\Resources\Invitations\Tables\InvitationsTable;
 use App\Models\Invitation;
 use BackedEnum;
 use Filament\Actions\Action;
+use Filament\Forms\Components\TextInput;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
@@ -36,13 +38,15 @@ class InvitationResource extends Resource
     }
 
     /**
-     * The real guest-facing link (route('invitations.show'), /i/{slug}) —
-     * distinct from the "Preview" action next to it, which opens a
-     * separate auth-gated route usable regardless of publish status.
-     * Copying is a browser clipboard API, not something a server round
-     * trip can do, so this has no ->action() — same alpineClickHandler()
-     * pattern as the Media Library's Copy Link (MediaResource), with the
-     * URL embedded directly since it's already known server-side.
+     * One combined action: opens a modal to customize the slug (the
+     * customizable part of the public /i/{slug} link, pre-filled from the
+     * record) and copies the resulting link to the clipboard on submit —
+     * merged from two previously separate actions (a read-only Copy Link
+     * and a slug-editing Customize Link) per explicit request to make them
+     * one. Saving happens first via ->action(), then the clipboard write
+     * runs client-side via Livewire's $livewire->js() (a real browser API,
+     * not something the server round trip itself can do) using the
+     * now-current slug.
      */
     public static function copyLinkAction(): Action
     {
@@ -50,7 +54,22 @@ class InvitationResource extends Resource
             ->label('Copy Link')
             ->icon(Heroicon::OutlinedLink)
             ->color('gray')
-            ->alpineClickHandler(function (Invitation $record): string {
+            ->modalHeading('Invitation Link')
+            ->modalDescription('Customize the link below, then copy it to share with guests.')
+            ->modalSubmitActionLabel('Copy Link')
+            ->schema([
+                TextInput::make('slug')
+                    ->label('Link')
+                    ->prefix(url('/i').'/')
+                    ->required()
+                    ->maxLength(255)
+                    ->unique(table: 'invitations', ignoreRecord: true)
+                    ->helperText('Editing this changes the public link.'),
+            ])
+            ->fillForm(fn (Invitation $record): array => ['slug' => $record->slug])
+            ->action(function (Invitation $record, array $data, $livewire): void {
+                $record->update(['slug' => $data['slug']]);
+
                 // route('invitations.show', $record) would embed the model's
                 // route key (id) instead of its slug — the /i/{slug} route
                 // parameter isn't named "invitation", so Laravel's URL
@@ -58,15 +77,12 @@ class InvitationResource extends Resource
                 // just calls $record->getRouteKey() (id) regardless. Passing
                 // the slug explicitly is the only way to get the real link.
                 $urlJs = Js::from(route('invitations.show', ['slug' => $record->slug]));
-                $messageJs = Js::from('Copied!');
+                $livewire->js("window.navigator.clipboard.writeText({$urlJs})");
 
-                return <<<JS
-                    window.navigator.clipboard.writeText({$urlJs})
-                    \$tooltip({$messageJs}, {
-                        theme: \$store.theme,
-                        timeout: 2000,
-                    })
-                    JS;
+                Notification::make()
+                    ->title('Link copied')
+                    ->success()
+                    ->send();
             });
     }
 
