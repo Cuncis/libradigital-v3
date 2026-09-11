@@ -51,7 +51,13 @@ class InvitationResource extends Resource
             ->icon(Heroicon::OutlinedLink)
             ->color('gray')
             ->alpineClickHandler(function (Invitation $record): string {
-                $urlJs = Js::from(route('invitations.show', $record));
+                // route('invitations.show', $record) would embed the model's
+                // route key (id) instead of its slug — the /i/{slug} route
+                // parameter isn't named "invitation", so Laravel's URL
+                // generator doesn't know to substitute the slug column, it
+                // just calls $record->getRouteKey() (id) regardless. Passing
+                // the slug explicitly is the only way to get the real link.
+                $urlJs = Js::from(route('invitations.show', ['slug' => $record->slug]));
                 $messageJs = Js::from('Copied!');
 
                 return <<<JS

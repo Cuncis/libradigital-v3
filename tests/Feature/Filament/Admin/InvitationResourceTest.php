@@ -113,12 +113,23 @@ class InvitationResourceTest extends TestCase
      * distinct from "Preview", which opens a separate auth-gated route.
      * Checked on both the list row action and the edit page header
      * action, since InvitationResource::copyLinkAction() is shared by both.
+     *
+     * Regression: route('invitations.show', $record) (passing the model
+     * directly) silently embedded the model's route key (id) instead of
+     * its slug — /i/{slug}'s parameter isn't named "invitation", so
+     * Laravel's URL generator has no binding field to consult and just
+     * calls $record->getRouteKey() (id). That 404'd for guests. Asserting
+     * only that the embedded JS matched route('invitations.show', $record)
+     * (as this test used to) doesn't catch that, since the same wrong call
+     * appears on both sides — so this also hits the embedded URL directly
+     * and asserts it actually resolves to the invitation's page.
      */
     public function test_the_copy_link_action_embeds_the_real_public_url(): void
     {
         $admin = User::factory()->create(['role' => UserRole::Admin]);
         $invitation = Invitation::factory()->published()->create(['slug' => 'amara-reyhan']);
-        $publicUrlJs = Js::from(route('invitations.show', $invitation))->toHtml();
+        $publicUrl = route('invitations.show', ['slug' => $invitation->slug]);
+        $publicUrlJs = Js::from($publicUrl)->toHtml();
 
         $listResponse = $this->actingAs($admin)->get('/admin/invitations');
         $listResponse->assertOk();
@@ -130,6 +141,8 @@ class InvitationResourceTest extends TestCase
         $editResponse->assertOk();
         $editResponse->assertSee('Copy Link');
         $editResponse->assertSee($publicUrlJs, false);
+
+        $this->get($publicUrl)->assertOk();
     }
 
     /**

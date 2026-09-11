@@ -450,6 +450,14 @@ Used Filament's built-in `Action::iconButton(): static` on each of the 4 `record
 
 **Tests**: added to both `InvitationResourceTest` suites — asserts `fi-icon-btn` appears in the list response. Combined with the existing `assertSee('Copy Link')`/`assertSee('Preview')` label assertions (which still pass), confirms labels survive as tooltips rather than disappearing. Full suite: 156/156 passing.
 
+## Ad-hoc: fixed "Copy Link" 404'ing for guests
+
+Reported bug: clicking Copy Link and opening the pasted URL always 404'd. Root cause was in `InvitationResource::copyLinkAction()` (both panels): `route('invitations.show', $record)` passes the Eloquent model directly, and Laravel's `UrlGenerator::formatParameters()` substitutes *any* `UrlRoutable` parameter with `$model->getRouteKey()` — which defaults to `id` — regardless of the target route's parameter name. `invitations.show` is `/i/{slug}`, a plain parameter (not the `{invitation:slug}` binding-field syntax used elsewhere, e.g. `rsvps.store`), so there was no binding field for the generator to consult; it silently built `/i/{id}` instead of `/i/{slug}`. `InvitationPageController::getRecord()` looks the record up by the `slug` column, so an id in that position never matched — hence the 404.
+
+Fix: pass the slug explicitly — `route('invitations.show', ['slug' => $record->slug])` — in both `InvitationResource.php` files.
+
+**Tests**: both `InvitationResourceTest::test_the_copy_link_action_embeds_the_real_public_url()` tests previously built their expected URL with the same buggy `route('invitations.show', $invitation)` call the production code used, so a matching (but wrong) URL on both sides passed silently — the tests didn't catch this. Fixed the expected-URL construction the same way, and added `$this->get($publicUrl)->assertOk()` so the test now actually requests the embedded URL and confirms it resolves, which is what would have caught the regression originally. Full suite: 156/156 passing.
+
 ## Phase 12 — Pre-release hardening
 
 - [ ] Confirm MySQL is fully configured for production (connection, backups — see below) rather than the Laravel skeleton's SQLite default.
