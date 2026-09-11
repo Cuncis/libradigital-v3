@@ -132,6 +132,24 @@ class InvitationResourceTest extends TestCase
         $editResponse->assertSee($publicUrlJs, false);
     }
 
+    /**
+     * The 4 row actions (Preview, Copy Link, Edit, Delete) render icon-only
+     * — fi-icon-btn is the class Filament's ->iconButton() view uses,
+     * distinct from a labeled button's fi-btn. The action's own ->label()
+     * is untouched (asserted above) — iconButton() only changes which view
+     * renders it, keeping the label as the button's accessible tooltip.
+     */
+    public function test_the_row_actions_render_as_icon_buttons_not_labeled_buttons(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        Invitation::factory()->create();
+
+        $response = $this->actingAs($admin)->get('/admin/invitations');
+
+        $response->assertOk();
+        $response->assertSee('fi-icon-btn', false);
+    }
+
     public function test_admin_sees_invitations_from_every_owner(): void
     {
         $admin = User::factory()->create(['role' => UserRole::Admin]);

@@ -63,10 +63,11 @@ class InvitationsTable
                     ->label('Preview')
                     ->icon(Heroicon::OutlinedEye)
                     ->url(fn (Invitation $record): string => route('invitations.preview', $record))
-                    ->openUrlInNewTab(),
-                InvitationResource::copyLinkAction(),
-                EditAction::make(),
-                DeleteAction::make(),
+                    ->openUrlInNewTab()
+                    ->iconButton(),
+                InvitationResource::copyLinkAction()->iconButton(),
+                EditAction::make()->iconButton(),
+                DeleteAction::make()->iconButton(),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([

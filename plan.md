@@ -442,6 +442,14 @@ Follow-up to a question about where the guest-facing link lives after publishing
 
 **Tests**: added to both `InvitationResourceTest` suites — button renders on the list row and the edit header, and the specific invitation's real public URL (not a placeholder) is what's embedded, checked in both places since a table-only or page-only assertion wouldn't catch the other one silently missing it. Full suite: 154/154 passing.
 
+## Ad-hoc: icon-only row actions in the Invitations list
+
+Follow-up request: the 4 row actions (Preview, Copy Link, Edit, Delete) in the Invitations list/table were rendering with visible text labels, taking up a lot of row width — asked to make them icon-only for a more concise UI. Scoped to the list/table's row actions specifically, not the edit page's header actions (which have more actions, including the primary "Save changes", that read better labeled).
+
+Used Filament's built-in `Action::iconButton(): static` on each of the 4 `recordActions` entries in both `InvitationsTable.php` files (admin and user panels). It swaps the action's rendering view to Filament's icon-button view (confirmed in `vendor/filament/support/resources/views/components/icon-button.blade.php`, marked by the `fi-icon-btn` CSS class vs. a labeled button's `fi-btn`) — the `->label()` value is untouched and still rendered as the button's accessible tooltip, so nothing else needed to change.
+
+**Tests**: added to both `InvitationResourceTest` suites — asserts `fi-icon-btn` appears in the list response. Combined with the existing `assertSee('Copy Link')`/`assertSee('Preview')` label assertions (which still pass), confirms labels survive as tooltips rather than disappearing. Full suite: 156/156 passing.
+
 ## Phase 12 — Pre-release hardening
 
 - [ ] Confirm MySQL is fully configured for production (connection, backups — see below) rather than the Laravel skeleton's SQLite default.
