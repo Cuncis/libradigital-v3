@@ -10,12 +10,14 @@ use App\Filament\User\Resources\Invitations\Schemas\InvitationForm;
 use App\Filament\User\Resources\Invitations\Tables\InvitationsTable;
 use App\Models\Invitation;
 use BackedEnum;
+use Filament\Actions\Action;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
+use Illuminate\Support\Js;
 
 class InvitationResource extends Resource
 {
@@ -31,6 +33,35 @@ class InvitationResource extends Resource
     public static function table(Table $table): Table
     {
         return InvitationsTable::configure($table);
+    }
+
+    /**
+     * The real guest-facing link (route('invitations.show'), /i/{slug}) —
+     * distinct from the "Preview" action next to it, which opens a
+     * separate auth-gated route usable regardless of publish status.
+     * Copying is a browser clipboard API, not something a server round
+     * trip can do, so this has no ->action() — same alpineClickHandler()
+     * pattern as the Media Library's Copy Link (MediaResource), with the
+     * URL embedded directly since it's already known server-side.
+     */
+    public static function copyLinkAction(): Action
+    {
+        return Action::make('copyLink')
+            ->label('Copy Link')
+            ->icon(Heroicon::OutlinedLink)
+            ->color('gray')
+            ->alpineClickHandler(function (Invitation $record): string {
+                $urlJs = Js::from(route('invitations.show', $record));
+                $messageJs = Js::from('Copied!');
+
+                return <<<JS
+                    window.navigator.clipboard.writeText({$urlJs})
+                    \$tooltip({$messageJs}, {
+                        theme: \$store.theme,
+                        timeout: 2000,
+                    })
+                    JS;
+            });
     }
 
     public static function getRelations(): array

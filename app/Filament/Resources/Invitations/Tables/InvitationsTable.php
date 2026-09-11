@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Invitations\Tables;
 
+use App\Filament\Resources\Invitations\InvitationResource;
 use App\Models\Invitation;
 use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
@@ -63,6 +64,7 @@ class InvitationsTable
                     ->icon(Heroicon::OutlinedEye)
                     ->url(fn (Invitation $record): string => route('invitations.preview', $record))
                     ->openUrlInNewTab(),
+                InvitationResource::copyLinkAction(),
                 EditAction::make(),
                 DeleteAction::make(),
             ])

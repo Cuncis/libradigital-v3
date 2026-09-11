@@ -11,6 +11,7 @@ use App\Models\Theme;
 use App\Models\User;
 use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Support\Js;
 use Livewire\Livewire;
 use Tests\TestCase;
 
@@ -186,5 +187,29 @@ class InvitationResourceTest extends TestCase
 
         $editResponse->assertSee('Preview');
         $editResponse->assertSee('Save changes');
+    }
+
+    /**
+     * The real guest-facing link (route('invitations.show'), /i/{slug}) —
+     * distinct from "Preview", which opens a separate auth-gated route.
+     * Checked on both the list row action and the edit page header
+     * action, since InvitationResource::copyLinkAction() is shared by both.
+     */
+    public function test_the_copy_link_action_embeds_the_real_public_url(): void
+    {
+        $customer = $this->subscribedCustomer();
+        $invitation = Invitation::factory()->for($customer)->published()->create(['slug' => 'amara-reyhan']);
+        $publicUrlJs = Js::from(route('invitations.show', $invitation))->toHtml();
+
+        $listResponse = $this->actingAs($customer)->get('/user/invitations');
+        $listResponse->assertOk();
+        $listResponse->assertSee('Copy Link');
+        $listResponse->assertSee('navigator.clipboard.writeText', false);
+        $listResponse->assertSee($publicUrlJs, false);
+
+        $editResponse = $this->actingAs($customer)->get("/user/invitations/{$invitation->id}/edit");
+        $editResponse->assertOk();
+        $editResponse->assertSee('Copy Link');
+        $editResponse->assertSee($publicUrlJs, false);
     }
 }

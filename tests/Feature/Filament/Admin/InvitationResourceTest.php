@@ -8,6 +8,7 @@ use App\Models\User;
 use App\UserRole;
 use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Support\Js;
 use Livewire\Livewire;
 use Tests\TestCase;
 
@@ -105,6 +106,30 @@ class InvitationResourceTest extends TestCase
         // actions) is untouched — only the surrounding chrome is gone.
         $editResponse->assertSee('Preview');
         $editResponse->assertSee('Save changes');
+    }
+
+    /**
+     * The real guest-facing link (route('invitations.show'), /i/{slug}) —
+     * distinct from "Preview", which opens a separate auth-gated route.
+     * Checked on both the list row action and the edit page header
+     * action, since InvitationResource::copyLinkAction() is shared by both.
+     */
+    public function test_the_copy_link_action_embeds_the_real_public_url(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $invitation = Invitation::factory()->published()->create(['slug' => 'amara-reyhan']);
+        $publicUrlJs = Js::from(route('invitations.show', $invitation))->toHtml();
+
+        $listResponse = $this->actingAs($admin)->get('/admin/invitations');
+        $listResponse->assertOk();
+        $listResponse->assertSee('Copy Link');
+        $listResponse->assertSee('navigator.clipboard.writeText', false);
+        $listResponse->assertSee($publicUrlJs, false);
+
+        $editResponse = $this->actingAs($admin)->get("/admin/invitations/{$invitation->id}/edit");
+        $editResponse->assertOk();
+        $editResponse->assertSee('Copy Link');
+        $editResponse->assertSee($publicUrlJs, false);
     }
 
     public function test_admin_sees_invitations_from_every_owner(): void

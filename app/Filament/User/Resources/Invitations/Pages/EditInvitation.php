@@ -36,6 +36,7 @@ class EditInvitation extends EditRecord
                 ->icon(Heroicon::OutlinedEye)
                 ->url(fn (Invitation $record): string => route('invitations.preview', $record))
                 ->openUrlInNewTab(),
+            InvitationResource::copyLinkAction(),
             // Not getSaveFormAction() — that renders a native type="submit"
             // button wired to the <form>'s wire:submit, which only works
             // while the button lives inside that <form>. Header actions

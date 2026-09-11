@@ -434,6 +434,14 @@ Edit Invitation is now a genuine full-screen takeover — no sidebar, no topbar 
 
 **Tests**: `InvitationResourceTest` (both panels) — edit page has neither sidebar nor topbar markup, list page (unaffected baseline) has both, header actions still render. Full suite: 152/152 passing.
 
+## Ad-hoc: "Copy Link" for the actual public invitation URL
+
+Follow-up to a question about where the guest-facing link lives after publishing: there wasn't a copy-link button anywhere — only "Preview", which opens a *different*, auth-gated route usable regardless of publish status, not the real `/i/{slug}` link a guest would use.
+
+`InvitationResource::copyLinkAction()` (both admin and user panels — same duplication pattern the rest of this resource pair already uses, since the two panels are deliberately independent) is the same `alpineClickHandler()` + `Illuminate\Support\Js::from()` pattern already built for the Media Library's Copy Link: embeds `route('invitations.show', $record)` (the actual public URL) directly into the generated clipboard JS at render time, no server round trip. Wired into both the list's row actions and the edit page's header actions, next to Preview in both places, since it's the same resource-level action reused from two different tables/pages.
+
+**Tests**: added to both `InvitationResourceTest` suites — button renders on the list row and the edit header, and the specific invitation's real public URL (not a placeholder) is what's embedded, checked in both places since a table-only or page-only assertion wouldn't catch the other one silently missing it. Full suite: 154/154 passing.
+
 ## Phase 12 — Pre-release hardening
 
 - [ ] Confirm MySQL is fully configured for production (connection, backups — see below) rather than the Laravel skeleton's SQLite default.
